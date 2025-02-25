@@ -1,36 +1,174 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Chattr - Real-time Chat Application
+
+Chattr is a modern, real-time chat application built with Next.js, WebSocket, and Redis. It features smart matchmaking, real-time messaging, and a beautiful, responsive UI.
+
+## Features
+
+- Real-time messaging with WebSocket
+- Smart matchmaking based on user preferences
+- End-to-end encryption for messages
+- Modern, responsive UI with animations
+- Dark mode support
+- Secure authentication with NextAuth.js
+- Performance monitoring and metrics
+- Highly scalable architecture
+
+## Tech Stack
+
+- **Frontend:**
+
+  - Next.js 13 (App Router)
+  - React 18
+  - Framer Motion
+  - TailwindCSS
+  - TypeScript
+
+- **Backend:**
+
+  - Node.js
+  - WebSocket (ws)
+  - Redis
+  - Kafka
+  - PostgreSQL (with Prisma)
+
+- **Authentication:**
+
+  - NextAuth.js
+  - Google OAuth
+
+- **Infrastructure:**
+  - AWS (ECS, DynamoDB, Lambda)
+  - Docker
+  - Redis
+  - Kafka
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18 or later
+- Redis server
+- PostgreSQL database
+- Docker (optional)
+
+### Environment Setup
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/yourusername/chattr.git
+cd chattr
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Copy the example environment file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+4. Set up the database:
+
+```bash
+npm run prisma:generate
+npm run prisma:push
+```
+
+### Development
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The application will be available at `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Build and start the production server:
 
-## Learn More
+```bash
+npm run build
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Docker
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Build and run with Docker:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+docker build -t chattr .
+docker run -p 3000:3000 -p 8080:8080 chattr
+```
 
-## Deploy on Vercel
+## Architecture
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Components
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **WebSocket Server**: Handles real-time communication
+- **Redis**: Message queuing and caching
+- **Kafka**: Event streaming and message processing
+- **DynamoDB**: Message storage
+- **PostgreSQL**: User data and chat room management
+
+### Scalability
+
+The application is designed to be highly scalable:
+
+- Containerized with Docker
+- Deployable on AWS ECS/Fargate
+- Auto-scaling based on CPU/Memory utilization
+- Load balanced with Application Load Balancer
+- Message processing with AWS Lambda
+
+### Monitoring
+
+- Prometheus metrics for:
+  - Active connections
+  - Message throughput
+  - Matchmaking latency
+  - Queue depth
+- Health check endpoints
+- Error tracking and logging
+
+## Security
+
+- End-to-end encryption for messages
+- JWT-based authentication
+- Rate limiting
+- Input validation
+- CORS protection
+- Security headers
+- GDPR compliance tools
+
+## API Documentation
+
+### WebSocket Events
+
+- `message`: Send/receive chat messages
+- `typing`: Typing indicators
+- `join`: Join chat rooms
+- `leave`: Leave chat rooms
+
+### REST Endpoints
+
+- `POST /api/matchmaking`: Find chat partners
+- `DELETE /api/matchmaking`: Leave matchmaking queue
+- `GET /api/health`: Service health check
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Next.js team for the amazing framework
+- Vercel for the deployment platform
+- TailwindCSS team for the utility-first CSS framework
+- Framer Motion for the beautiful animations
