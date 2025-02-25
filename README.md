@@ -1,4 +1,4 @@
-# Chattr - Real-time Chat Application
+# Chattr
 
 Chattr is a modern, real-time chat application built with Next.js, WebSocket, and Redis. It features smart matchmaking, real-time messaging, and a beautiful, responsive UI.
 
