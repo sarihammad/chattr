@@ -1,6 +1,8 @@
 # Chattr
 
-Chattr is a modern, real-time chat application built with Next.js, WebSocket, and Redis. It features smart matchmaking, real-time messaging, and a beautiful, responsive UI.
+A modern, real-time chat application.
+
+Chattr is a real-time messaging application featuring smart matchmaking, real-time messaging, and a modern, responsive UI. built with Next.js, WebSockets, Kafka, Redis, AWS Lambda, and DynamoDB, designed to handle 50K+ concurrent users with sub-50ms latency. Features include random chat matchmaking, filtering by gender & conversation purpose, end-to-end encryption (E2EE), and 99.99% uptime with auto-scaling.
 
 ## Features
 
@@ -166,9 +168,3 @@ The application is designed to be highly scalable:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
-
-- Next.js team for the amazing framework
-- Vercel for the deployment platform
-- TailwindCSS team for the utility-first CSS framework
-- Framer Motion for the beautiful animations
