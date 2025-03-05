@@ -1,6 +1,6 @@
 # Chattr
 
-A modern, real-time chat application.
+A real-time chat application.
 
 Chattr is a real-time messaging application featuring smart matchmaking, real-time messaging, and a modern, responsive UI. built with Next.js, WebSockets, Kafka, Redis, AWS Lambda, and DynamoDB, designed to handle 50K+ concurrent users with sub-50ms latency. Features include random chat matchmaking, filtering by gender & conversation purpose, end-to-end encryption (E2EE), and 99.99% uptime with auto-scaling.
 
