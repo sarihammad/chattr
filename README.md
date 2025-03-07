@@ -58,7 +58,7 @@ Chattr is a real-time messaging application featuring smart matchmaking, real-ti
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/chattr.git
+git clone https://github.com/sarihammad/chattr.git
 cd chattr
 ```
 
