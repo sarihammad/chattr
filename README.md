@@ -1,8 +1,6 @@
 # Chattr
 
-Messaging platform that enables users to connect for casual conversations, friendship, or romance.
-
-Built using a distributed microservices architecture in Spring Boot.
+Distributed messaging platform for casual conversation, friendship, or dating.
 
 
 ## Core Features
