@@ -1,3 +1,3 @@
 # Chattr
 
-Distributed chat platform for casual conversation, friendship, and dating.
+Chat platform with random matchmaking.
