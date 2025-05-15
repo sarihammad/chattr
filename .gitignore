@@ -10,6 +10,7 @@ coverage
 
 # Ignore build directories
 backend/target/
+backend/target/*
 backend/build/
 
 # Ignore Next.js build and dependencies
