@@ -36,4 +36,22 @@ public class UserService {
         return userRepository.findByUsername(username)
                 .map(userMapper::toResponse);
     }
+
+    @Transactional
+    public UserResponse updateUser(UserRequest userRequest) {
+        return userRepository.findByUsername(userRequest.getUsername())
+                .map(existingUser -> {
+                    existingUser.setEmail(userRequest.getEmail());
+                    existingUser.setPassword(userRequest.getPassword()); // You might want to hash this in production
+                    userRepository.save(existingUser);
+                    return userMapper.toResponse(existingUser);
+                })
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    public boolean isEmailTaken(String email, String currentUsername) {
+        return userRepository.findByEmail(email)
+                .filter(user -> !user.getUsername().equals(currentUsername))
+                .isPresent();
+    }
 }
