@@ -3,9 +3,9 @@ package com.devign.chattr.controller;
 import com.devign.chattr.dto.UserRequest;
 import com.devign.chattr.dto.UserResponse;
 import com.devign.chattr.service.UserService;
+import com.devign.chattr.aspect.Ratelimited;
 import jakarta.validation.Valid;
 
-import org.apache.catalina.connector.Response;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,12 +19,14 @@ public class UserController {
         this.userService = userService;
     }
 
+    @Ratelimited
     @PostMapping
     public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserRequest userRequest) {
         UserResponse userResponse = userService.createUser(userRequest);
         return ResponseEntity.status(201).body(userResponse);
     }
 
+    @Ratelimited
     @GetMapping("/{username}")
     public ResponseEntity<UserResponse> getUserByUsername(@PathVariable String username) {
         return userService.getUserByUsername(username)
