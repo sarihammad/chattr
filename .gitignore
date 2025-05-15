@@ -4,3 +4,44 @@ node_modules
 .env.local
 *.log
 coverage
+
+# Ignore VSCode settings
+.vscode/
+
+# Ignore build directories
+backend/target/
+backend/target/*
+backend/build/
+
+# Ignore Next.js build and dependencies
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+frontend/*.log
+
+# Ignore Spring Boot environment files and logs
+backend/.env
+backend/*.log
+backend/target/
+backend/build/
+backend/*.jar
+backend/*.war
+backend/*.iml
+
+# Ignore IntelliJ IDEA files
+.idea/
+*.iml
+*.iws
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
