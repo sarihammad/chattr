@@ -5,25 +5,57 @@ A distributed real-time chat and video platform built with microservices and eve
 ## Architecture
 
 ```mermaid
-graph LR
-    UserClients[User Clients] -->|WebSocket/WebRTC| APIGateway[API Gateway]
-    APIGateway --> AuthService[Auth Service]
-    APIGateway --> MessagingService[Messaging Service]
-    APIGateway --> VideoService[Video Service]
-    AuthService -->|Async Events| Kafka[Kafka Event Bus]
+graph TD
+    subgraph Clients
+        UserClients[User Clients]
+    end
+
+    subgraph Gateway
+        APIGateway[API Gateway]
+    end
+
+    subgraph Services
+        AuthService[Auth Service]
+        MessagingService[Messaging Service]
+        VideoService[Video Service]
+        MatchmakingService[Matchmaking Service]
+    end
+
+    subgraph Infra
+        Kafka[Kafka Event Bus]
+        Redis[Redis Cache & Pub/Sub]
+        Prometheus[Prometheus Metrics]
+        Grafana[Grafana Dashboards]
+    end
+
+    UserClients -->|WebSocket/WebRTC| APIGateway
+
+    APIGateway --> AuthService
+    APIGateway --> MessagingService
+    APIGateway --> VideoService
+    APIGateway --> MatchmakingService
+
+    AuthService -->|Async Events| Kafka
     MessagingService -->|Async Events| Kafka
     VideoService -->|Async Events| Kafka
+    MatchmakingService -->|Async Events| Kafka
+
     Kafka --> AuthService
     Kafka --> MessagingService
     Kafka --> VideoService
-    Redis[Redis Cache & Pub/Sub] <--> AuthService
+    Kafka --> MatchmakingService
+
+    Redis <--> AuthService
     Redis <--> MessagingService
     Redis <--> VideoService
-    Prometheus[Prometheus Metrics] --> Grafana[Grafana Dashboards]
+    Redis <--> MatchmakingService
+
+    Prometheus --> Grafana
     AuthService --> Prometheus
     MessagingService --> Prometheus
     VideoService --> Prometheus
     APIGateway --> Prometheus
+    MatchmakingService --> Prometheus
 ```
 
 ## System Overview
@@ -32,6 +64,7 @@ graph LR
 - **Auth Service**: Manages user signup, login, authentication tokens, and session management.
 - **Messaging Service**: Handles sending and receiving chat messages, persisting them to PostgreSQL.
 - **Video Service**: Manages WebRTC signaling and video session orchestration.
+- **Matchmaking Service**: Coordinates pairing of users for chat or video sessions, using Redis for state tracking and Kafka for scalable event processing.
 - **Event Bus**: Kafka is used for asynchronous event communication between services.
 - **Cache/State**: Redis is used for presence tracking, rate limiting, and pub/sub messaging.
 - **Observability**: Prometheus collects metrics from services, with Grafana dashboards for visualization and logs aggregation.
