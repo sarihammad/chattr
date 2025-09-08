@@ -6,7 +6,7 @@ A distributed real-time chat and video platform built with microservices and eve
 
 ```mermaid
 graph LR
-    UserClients[User Clients (WebSocket/WebRTC)] -->|WebSocket/WebRTC| APIGateway[API Gateway]
+    UserClients[User Clients] -->|WebSocket/WebRTC| APIGateway[API Gateway]
     APIGateway --> AuthService[Auth Service]
     APIGateway --> MessagingService[Messaging Service]
     APIGateway --> VideoService[Video Service]
