@@ -81,9 +81,13 @@ class MatchmakingServiceTest {
                 .country("CA")
                 .build();
 
+        org.springframework.data.redis.core.ValueOperations<String, String> valueOps = 
+                mock(org.springframework.data.redis.core.ValueOperations.class);
+        
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
         when(preferencesRepository.findByUser(testUser)).thenReturn(Optional.empty());
         when(preferencesRepository.save(any(MatchmakingPreferences.class))).thenReturn(testPreferences);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
 
         // When
         matchmakingService.updatePreferences("testuser", dto);
@@ -91,6 +95,7 @@ class MatchmakingServiceTest {
         // Then
         verify(preferencesRepository, times(1)).save(any(MatchmakingPreferences.class));
         verify(redisTemplate, times(1)).opsForValue();
+        verify(valueOps, times(1)).set(anyString(), anyString());
     }
 
     @Test

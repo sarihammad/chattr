@@ -42,6 +42,7 @@ class AiClientServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(aiClientService, "aiServiceUrl", "http://localhost:8000");
+        ReflectionTestUtils.setField(aiClientService, "restTemplate", restTemplate);
         
         testUser = User.builder()
                 .username("testuser")

@@ -132,7 +132,7 @@ export default function PricingPage() {
                   </ul>
 
                   <button
-                    onClick={() => handlePlanClick(plan.name)}
+                    onClick={() => handlePlanClick(plan)}
                     className="w-full py-3 px-4 mt-6 rounded-lg font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"
                   >
                     {plan.action}
