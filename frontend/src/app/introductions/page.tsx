@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { Heart, X, CheckCircle2, ArrowRight, Loader2 } from 'lucide-react';
 import Image from 'next/image';

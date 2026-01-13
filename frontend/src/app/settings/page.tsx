@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getApiUrl, getAuthHeaders } from '@/lib/api';

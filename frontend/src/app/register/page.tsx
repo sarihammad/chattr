@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SocialAuth from '@/components/SocialAuth';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
-import { signIn } from 'next-auth/react';
+import { loginUser } from '@/lib/auth';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -49,14 +49,10 @@ export default function RegisterPage() {
       }
 
       // Automatically log the user in after registration
-      const loginResponse = await signIn('credentials', {
-        redirect: false,
-        email,
-        password,
-      });
+      const loginResponse = await loginUser(email, password);
 
-      if (loginResponse?.error) {
-        throw new Error(loginResponse.error);
+      if (!loginResponse) {
+        throw new Error('Registration successful but login failed. Please try logging in.');
       }
 
       router.push('/onboarding');

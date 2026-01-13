@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SocialAuth from '@/components/SocialAuth';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/useAuth';
 import { getApiUrl } from '@/lib/api';
 import authTokenModule from '@/lib/authToken';
 

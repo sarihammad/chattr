@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { Send, ArrowLeft, Loader2 } from 'lucide-react';
 import { getApiUrl, getAuthHeaders } from '@/lib/api';
