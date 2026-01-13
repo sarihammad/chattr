@@ -50,10 +50,11 @@ export function useSession() {
   };
 }
 
-export function signOut() {
+export function signOut(options?: { callbackUrl?: string }) {
   logoutUser();
   if (typeof window !== 'undefined') {
-    window.location.href = '/login';
+    const redirectUrl = options?.callbackUrl || '/login';
+    window.location.href = redirectUrl;
   }
 }
 
