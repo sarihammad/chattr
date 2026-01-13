@@ -25,7 +25,8 @@ export async function POST(request: Request) {
   }
 
   // Return user data without password
-  const { password: _, ...userData } = user;
+  const { password: passwordFromDb, ...userData } = user;
+  void passwordFromDb;
 
   return NextResponse.json(userData);
 }

@@ -1,0 +1,29 @@
+================================================================================
+  COPY AND PASTE THESE COMMANDS INTO YOUR TERMINAL
+================================================================================
+
+cd /Users/sarihammad/dev/chattr
+
+# Make script executable and run it
+chmod +x EXECUTE_THESE_COMMANDS.sh
+./EXECUTE_THESE_COMMANDS.sh
+
+================================================================================
+  OR RUN THE COMMANDS MANUALLY (copy each section)
+================================================================================
+
+The script creates 9 organized commits:
+1. Remove old services (ai-service, Kafka)
+2. New data models
+3. New services
+4. New API endpoints
+5. Questionnaire seeder
+6. Frontend rewrite
+7. Settings and API fixes
+8. Documentation
+9. Remaining changes
+
+Then pushes to GitHub.
+
+================================================================================
+

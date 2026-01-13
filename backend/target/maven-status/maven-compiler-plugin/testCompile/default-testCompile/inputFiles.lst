@@ -1,1 +1,10 @@
 /Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/ChattrApplicationTests.java
+/Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/integration/BlockEnforcementTest.java
+/Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/integration/ChatAccessControlTest.java
+/Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/integration/KafkaIntegrationTest.java
+/Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/integration/MatchmakingIntegrationTest.java
+/Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/integration/RedisIntegrationTest.java
+/Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/integration/S3StorageIntegrationTest.java
+/Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/integration/WebSocketIntegrationTest.java
+/Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/service/AiClientServiceTest.java
+/Users/sarihammad/dev/chattr/backend/src/test/java/com/devign/chattr/service/MatchmakingServiceTest.java

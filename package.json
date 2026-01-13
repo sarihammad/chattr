@@ -1,0 +1,8 @@
+{
+  "name": "chattr-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "check": "bash ./scripts/check.sh"
+  }
+}

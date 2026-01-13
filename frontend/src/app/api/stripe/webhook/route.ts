@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { db } from '@/lib/db';
+import { getStripeClient } from '@/lib/serverStripe';
 
 function determineSubscriptionType(subscription: Stripe.Subscription): 'monthly' | 'yearly' {
   const monthlyPriceId = process.env.NEXT_PUBLIC_STRIPE_MONTHLY_PRICE_ID;
@@ -14,14 +15,11 @@ export const config = {
   },
 };
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-03-31.basil',
-});
-
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(req: Request) {
-  const buf = await (req as any).arrayBuffer();
+  const stripe = getStripeClient();
+  const buf = await req.arrayBuffer();
   const rawBody = Buffer.from(buf);
   const sig = req.headers.get('stripe-signature');
 
@@ -30,12 +28,12 @@ export async function POST(req: Request) {
   try {
     if (!sig) throw new Error('Missing Stripe signature header');
     event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
-  } catch (err: any) {
-    console.error('Webhook signature verification failed.', err.message);
-    return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Unknown Stripe error';
+    console.error('Webhook signature verification failed.', message);
+    return new NextResponse(`Webhook Error: ${message}`, { status: 400 });
   }
-
-  const subscription = event.data.object as Stripe.Subscription;
 
   try {
     switch (event.type) {

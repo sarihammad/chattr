@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/nextAuthOptions'; // adjust path if necessary
 import type { NextRequest } from 'next/server';
 import { rateLimit } from "@/middleware/rateLimit";
 import { requireAuth } from "@/middleware/auth";
 
 export async function GET(req: NextRequest) {
   rateLimit(req, 10, 60000);
-  await requireAuth();
+  const session = await requireAuth();
+  const email = session.user?.email;
+  if (!email) {
+    return NextResponse.json({ error: 'User session invalid' }, { status: 401 });
+  }
 
   const user = await db.user.findUnique({
-    where: { email: session.user.email },
+    where: { email },
     select: {
       isSubscribed: true,
       subscriptionStatus: true,

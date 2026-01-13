@@ -3,55 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-
-const plans = [
-  {
-    name: 'Monthly',
-    price: '19.99',
-    unit: '/month',
-    description: 'Perfect for casual learners',
-    features: [
-      'Unlimited AI conversations',
-      'Access to all languages',
-      'Personalized learning path',
-      'Progress tracking',
-      'Basic support',
-    ],
-    action: 'Start Monthly',
-    popular: true,
-  },
-  {
-    name: 'Yearly',
-    price: '99.99',
-    unit: '/year',
-    description: 'Best value for dedicated learners',
-    features: [
-      'Everything in Monthly plan',
-      'Save over 50% vs monthly',
-      'Priority support',
-      'Advanced analytics',
-      'Learning community access',
-    ],
-    action: 'Start Yearly',
-    popular: false,
-  },
-  {
-    name: 'Lifetime',
-    price: '299.99',
-    unit: ' one time',
-    description: 'Limited time offer',
-    features: [
-      'Everything in Yearly plan',
-      'Lifetime access to all features',
-      'VIP support',
-      'Early access to new features',
-      'Exclusive learning resources',
-    ],
-    action: 'Get Lifetime Access',
-    popular: false,
-    limitedTime: true,
-  },
-];
+import pricingPlansModule from '@/lib/pricingPlans';
 
 function CountdownTimer() {
   const [timeLeft, setTimeLeft] = useState({
@@ -92,6 +44,7 @@ function CountdownTimer() {
 export default function PricingPage() {
   const [isWeekend, setIsWeekend] = useState(false);
   const router = useRouter();
+  const { pricingPlans } = pricingPlansModule;
 
   useEffect(() => {
     const checkWeekend = () => {
@@ -101,13 +54,17 @@ export default function PricingPage() {
     checkWeekend();
   }, []);
 
-  const handlePlanClick = (plan: string) => {
-    router.push(`/checkout?plan=${plan.toLowerCase()}`);
+  const handlePlanClick = (plan: (typeof pricingPlans)[number]) => {
+    if (plan.checkoutPlanId) {
+      router.push(`/checkout?plan=${plan.checkoutPlanId}`);
+      return;
+    }
+    router.push('/register');
   };
 
   const displayedPlans = isWeekend
-    ? plans
-    : plans.filter((plan) => plan.name !== 'Lifetime');
+    ? pricingPlans
+    : pricingPlans.filter((plan) => plan.name !== 'Lifetime');
 
   return (
     <div className="relative min-h-screen w-full bg-[#030303] overflow-hidden">
@@ -118,10 +75,10 @@ export default function PricingPage() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h1 className="text-4xl font-bold text-white mb-4">
-                Choose Your Learning Journey
+                Simple, Transparent Pricing
               </h1>
               <p className="text-xl text-white/60">
-                Unlock the power of AI-driven language learning
+                Start connecting for free. Upgrade anytime for premium features.
               </p>
             </div>
 
@@ -161,7 +118,7 @@ export default function PricingPage() {
 
                   {plan.limitedTime && (
                     <div className="absolute top-4 right-4">
-                        <CountdownTimer />
+                      <CountdownTimer />
                     </div>
                   )}
 

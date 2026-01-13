@@ -30,8 +30,10 @@ function CheckoutContent() {
 
         const stripe = await stripePromise;
         await stripe?.redirectToCheckout({ sessionId: data.sessionId });
-      } catch (err: any) {
-        setError(err.message || "Something went wrong");
+      } catch (caught: unknown) {
+        const message =
+          caught instanceof Error ? caught.message : "Something went wrong";
+        setError(message);
       } finally {
         setLoading(false);
       }

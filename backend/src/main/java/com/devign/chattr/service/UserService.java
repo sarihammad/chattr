@@ -42,7 +42,7 @@ public class UserService {
         return userRepository.findByUsername(userRequest.getUsername())
                 .map(existingUser -> {
                     existingUser.setEmail(userRequest.getEmail());
-                    existingUser.setPassword(userRequest.getPassword()); // You might want to hash this in production
+                    existingUser.setPassword(userRequest.getPassword());
                     userRepository.save(existingUser);
                     return userMapper.toResponse(existingUser);
                 })

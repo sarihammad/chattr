@@ -1,30 +1,33 @@
 // src/app/api/subscription/upgrade/route.ts
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/nextAuthOptions';
 import { db } from '@/lib/db';
 import { rateLimit } from "@/middleware/rateLimit";
 import { requireAuth } from '@/middleware/auth';
-import Stripe from 'stripe';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-03-31.basil',
-});
+import { getStripeClient } from '@/lib/serverStripe';
 
 export async function POST(req: Request) {
   rateLimit(req, 10, 60000);
-  await requireAuth();
+  const session = await requireAuth();
+  const email = session.user?.email;
+  if (!email) {
+    return NextResponse.json({ error: 'User session invalid' }, { status: 401 });
+  }
 
   const { newPriceId } = await req.json();
 
+  if (!newPriceId || typeof newPriceId !== 'string') {
+    return NextResponse.json({ error: 'Invalid price ID' }, { status: 400 });
+  }
+
   const user = await db.user.findUnique({
-    where: { email: session.user.email },
+    where: { email },
   });
 
   if (!user?.stripeSubscriptionId) {
     return NextResponse.json({ error: 'No subscription found' }, { status: 404 });
   }
 
+  const stripe = getStripeClient();
   const subscription = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
 
   const updated = await stripe.subscriptions.update(user.stripeSubscriptionId, {

@@ -1,24 +1,28 @@
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { db } from '@/lib/db';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/nextAuthOptions';
 import { rateLimit } from "@/middleware/rateLimit";
 import { requireAuth } from "@/middleware/auth";
 import type { NextRequest } from 'next/server';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-03-31.basil',
-});
+import { getStripeClient } from '@/lib/serverStripe';
 
 export async function POST(req: NextRequest) {
   rateLimit(req, 10, 60000);
-  await requireAuth();
+  const session = await requireAuth();
+  const email = session.user?.email;
+  if (!email) {
+    return NextResponse.json({ error: 'User session invalid' }, { status: 401 });
+  }
 
   const { plan } = await req.json();
-  const user = await db.user.findUnique({ where: { email: session.user.email } });
+  const user = await db.user.findUnique({ where: { email } });
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  const stripe = getStripeClient();
+
+  if (plan !== 'monthly' && plan !== 'yearly') {
+    return NextResponse.json({ error: 'Plan must be monthly or yearly' }, { status: 400 });
   }
 
   const stripeCustomerId = user.stripeCustomerId || (await createOrGetCustomer(user.email));
@@ -47,6 +51,7 @@ export async function POST(req: NextRequest) {
 }
 
 async function createOrGetCustomer(email: string) {
+  const stripe = getStripeClient();
   const customer = await stripe.customers.create({ email });
   await db.user.update({ where: { email }, data: { stripeCustomerId: customer.id } });
   return customer.id;

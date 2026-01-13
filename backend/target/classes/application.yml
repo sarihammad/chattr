@@ -1,11 +1,18 @@
+server:
+  port: 8080
+
 spring:
+  redis:
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: ${SPRING_REDIS_PORT:6379}
+    timeout: ${SPRING_REDIS_TIMEOUT:60000}
   config:
     import: "optional:file:.env[.properties]"
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/chattr
-    username: sarihammad
-    password: Sss@1234
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/chattr}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -16,7 +23,24 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
-  sql:
-    init:
-      mode: always
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration: ${JWT_EXPIRATION_MS:86400000}
+
+aws:
+  access:
+    key: ${AWS_ACCESS_KEY}
+  secret:
+    key: ${AWS_SECRET_KEY}
+  region: ${AWS_REGION}
+  s3:
+    bucket: ${AWS_S3_BUCKET}
+
+file:
+  upload-dir: ./uploads
+

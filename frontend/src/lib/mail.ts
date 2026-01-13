@@ -1,15 +1,32 @@
 // src/lib/mail.ts
 import nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASS,
-  },
-  debug: true,
-  logger: true,
-});
+const transporter: Transporter =
+  process.env.GMAIL_USER && process.env.GMAIL_PASS
+    ? nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_PASS,
+        },
+        debug: true,
+        logger: true,
+      })
+    : ({
+        async sendMail() {
+          return {
+            accepted: [],
+            rejected: [],
+            envelopeTime: 0,
+            messageTime: 0,
+            messageSize: 0,
+            response: "Mailing disabled in preview mode",
+            envelope: { from: "", to: [] },
+            messageId: "preview-mail",
+          };
+        },
+      } as unknown as Transporter);
 
 interface SendPasswordResetEmailOptions {
   email: string;

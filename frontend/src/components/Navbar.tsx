@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useSession, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,7 +36,6 @@ export default function Navbar() {
     handleScroll();
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastScrollY]);
 
   useEffect(() => {
@@ -64,7 +62,6 @@ export default function Navbar() {
   }, [isOpen]);
 
   const navBgClass = 'bg-white';
-  const logoClass = 'text-red-600';
   const menuTextClass = 'text-gray-700';
   const hamburgerClass = 'bg-gray-700';
 

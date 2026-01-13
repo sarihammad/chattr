@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SocialAuth from '@/components/SocialAuth';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
-import { useSession, signIn } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
+import { getApiUrl } from '@/lib/api';
+import authTokenModule from '@/lib/authToken';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,6 +17,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { setStoredAuthToken } = authTokenModule;
 
   const { data: session } = useSession();
 
@@ -23,7 +26,7 @@ export default function LoginPage() {
     if (session?.user) {
       router.replace('/dashboard');
     }
-  }, [session]);
+  }, [session, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,33 +34,49 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await signIn('credentials', {
-        redirect: false,
-        email,
-        password,
-        remember: rememberMe,
-        callbackUrl: '/dashboard',
+      const response = await fetch(`${getApiUrl()}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          email,
+          password,
+        }),
       });
 
-      if (res?.error) {
-        throw new Error(res.error);
+      if (!response.ok) {
+        throw new Error('Invalid email or password. Please try again.');
+      }
+
+      const data = await response.json();
+      console.log('Login successful: ', data);
+
+      // Store the access token if available
+      if (data.accessToken) {
+        setStoredAuthToken(data.accessToken);
+      } else if (data.token) {
+        setStoredAuthToken(data.token);
       }
 
       router.push('/dashboard');
-    } catch (err: any) {
-      setError('Invalid email or password. Please try again.');
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : 'An error occurred during login.'
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div
-      className="min-h-screen bg-gradient-to-b from-white to-red-50 flex flex-col items-center justify-start pt-12 px-4"
-    >
+    <div className="min-h-screen bg-gradient-to-b from-white to-red-50 flex flex-col items-center justify-start pt-12 px-4">
       <div className="sm:mx-auto w-full max-w-md">
         <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-gray-900">Welcome Back</h2>
+          <h2 className="text-3xl font-extrabold text-gray-900">
+            Welcome Back
+          </h2>
           <p className="mt-2 text-sm text-gray-600">
             Continue your productivity journey with YourApp
           </p>
@@ -74,7 +93,10 @@ export default function LoginPage() {
 
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Email address
               </label>
               <div className="mt-1">
@@ -92,7 +114,10 @@ export default function LoginPage() {
             </div>
 
             <div className="relative">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Password
               </label>
               <div className="mt-1">
@@ -112,16 +137,25 @@ export default function LoginPage() {
                   className="absolute inset-y-0 right-0 top-6 flex items-center pr-3"
                 >
                   {showPassword ? (
-                    <EyeSlashIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                    <EyeSlashIcon
+                      className="h-5 w-5 text-gray-400"
+                      aria-hidden="true"
+                    />
                   ) : (
-                    <EyeIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                    <EyeIcon
+                      className="h-5 w-5 text-gray-400"
+                      aria-hidden="true"
+                    />
                   )}
                 </button>
               </div>
             </div>
 
             <div className="flex items-center justify-between text-sm text-gray-900">
-              <label htmlFor="remember-me" className="flex items-center space-x-2">
+              <label
+                htmlFor="remember-me"
+                className="flex items-center space-x-2"
+              >
                 <input
                   id="remember-me"
                   name="remember-me"
@@ -132,7 +166,10 @@ export default function LoginPage() {
                 />
                 <span>Remember me</span>
               </label>
-              <Link href="/forgot-password" className="font-medium text-red-600 hover:text-red-500">
+              <Link
+                href="/forgot-password"
+                className="font-medium text-red-600 hover:text-red-500"
+              >
                 Forgot password?
               </Link>
             </div>
@@ -165,8 +202,11 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Don’t have an account?{' '}
-              <Link href="/register" className="font-medium text-red-600 hover:text-red-500">
+              Don&apos;t have an account?{' '}
+              <Link
+                href="/register"
+                className="font-medium text-red-600 hover:text-red-500"
+              >
                 Sign up
               </Link>
             </p>

@@ -19,6 +19,10 @@ model User {
   stripeSubscriptionId   String?
   stripePriceId          String?
   stripeCurrentPeriodEnd DateTime?
+  isSubscribed           Boolean   @default(false)
+  subscriptionStatus     String?
+  subscriptionPeriodEnd  DateTime?
+  cancelAtPeriodEnd      Boolean   @default(false)
   isDowngrading          Boolean   @default(false)
   subscriptionType       String?
   aiCallsUsed            Int       @default(0)

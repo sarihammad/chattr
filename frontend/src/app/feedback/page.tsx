@@ -29,8 +29,10 @@ export default function FeedbackPage() {
       setSuccess('Thanks for your feedback!');
       setEmail('');
       setMessage('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to send feedback.');
+    } catch (caught) {
+      const message =
+        caught instanceof Error ? caught.message : 'Failed to send feedback.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -40,7 +42,7 @@ export default function FeedbackPage() {
     <div className="min-h-screen bg-white px-6 py-12">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">We’d love your feedback</h1>
-        <p className="text-gray-600 mb-8">Let us know what you think, what could be better, or if you've run into issues.</p>
+        <p className="text-gray-600 mb-8">Let us know what you think, what could be better, or if you&rsquo;ve run into issues.</p>
 
         {success && <div className="mb-4 text-green-700 bg-green-100 p-3 rounded-md">{success}</div>}
         {error && <div className="mb-4 text-red-700 bg-red-100 p-3 rounded-md">{error}</div>}
@@ -64,7 +66,7 @@ export default function FeedbackPage() {
               rows={6}
               required
               className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500 text-sm text-gray-800"
-              placeholder="What's on your mind?"
+              placeholder="What&rsquo;s on your mind?"
             />
           </div>
           <div className="flex justify-end">

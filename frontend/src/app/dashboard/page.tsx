@@ -1,969 +1,987 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { PlusIcon } from '@heroicons/react/24/solid';
-import { PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import Image from 'next/image';
+import {
+  Search,
+  MoreVertical,
+  Send,
+  Smile,
+  Paperclip,
+  Users,
+  Heart,
+  Shuffle,
+  Briefcase,
+  Loader2,
+  X,
+  Sparkles,
+  Shield,
+  AlertTriangle,
+} from 'lucide-react';
+import {
+  connectWebSocket,
+  disconnectWebSocket,
+  getWebSocketClient,
+} from '@/lib/websocket';
+import { getApiUrl, getAuthHeaders } from '@/lib/api';
 
+type MatchmakingMode = 'FRIENDS' | 'DATING' | 'RANDOM' | 'NETWORKING';
 
-const typingTexts = [
-  'I want to get in shape.',
-  'I want to launch a business.',
-  'I want a daily morning routine.',
-];
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  isComplete: boolean;
-  scheduledAt: string;
-  updatedAt: string;
-  priority: 'high' | 'medium' | 'low';
-  recurrenceRule?: 'daily' | 'weekly' | 'monthly' | 'yearly' | '';
-  duration?: number;
-  deadline?: string;
+interface ChatMessage {
+  id: number;
+  sender: string;
+  content: string | null;
+  timestamp: string;
+  isRead: boolean;
+  type: 'TEXT' | 'IMAGE' | 'FILE';
+  mediaUrl?: string | null;
 }
 
-// Helper to parse floating local datetime (yyyy-mm-ddTHH:MM, no timezone)
-function parseFloatingDatetime(isoString: string): Date {
-  const [datePart, timePart] = isoString.split('T');
-  const [year, month, day] = datePart.split('-').map(Number);
-  const [hour, minute] = timePart.split(':').map(Number);
-  return new Date(year, month - 1, day, hour, minute);
-}
-  // Recurrence logic removed: Only show if scheduledAt is today and not complete
-  const isTaskForToday = (task: Task) => {
-    if (task.isComplete) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const scheduledAt = parseFloatingDatetime(task.scheduledAt);
-    scheduledAt.setHours(0, 0, 0, 0);
-
-    return (
-      today.getFullYear() === scheduledAt.getFullYear() &&
-      today.getMonth() === scheduledAt.getMonth() &&
-      today.getDate() === scheduledAt.getDate()
-    );
-  };
-
-  // Overdue filter
-  const isOverdue = (task: Task) => {
-    if (task.isComplete) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const scheduledAt = parseFloatingDatetime(task.scheduledAt);
-    scheduledAt.setHours(0, 0, 0, 0);
-    return scheduledAt < today && !isTaskForToday(task);
-  };
-
-  const isCompletedToday = (task: Task) => {
-    if (!task.isComplete) return false;
-
-    const completedAt = new Date(task.updatedAt || task.scheduledAt); // fallback to scheduledAt if no updatedAt
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const sameDay = (a: Date, b: Date) =>
-      a.getFullYear() === b.getFullYear() &&
-      a.getMonth() === b.getMonth() &&
-      a.getDate() === b.getDate();
-
-    return sameDay(today, completedAt);
-  };
-
-
-function sortTasks(tasks: Task[]): Task[] {
-  const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-
-  return tasks.slice().sort((a, b) => {
-    // Completed tasks go to the end, sorted by updatedAt descending (most recent last)
-    if (a.isComplete && !b.isComplete) return 1;
-    if (!a.isComplete && b.isComplete) return -1;
-    if (a.isComplete && b.isComplete) {
-      const aUpdated = new Date(a.updatedAt).getTime();
-      const bUpdated = new Date(b.updatedAt).getTime();
-      return aUpdated - bUpdated; // earlier updatedAt first
-    }
-
-    // 1. Unscheduled tasks come first
-    const aHasTime = Boolean(a.scheduledAt);
-    const bHasTime = Boolean(b.scheduledAt);
-    if (!aHasTime && bHasTime) return -1;
-    if (aHasTime && !bHasTime) return 1;
-
-    // 2. If both are unscheduled, sort by priority
-    if (!aHasTime && !bHasTime) {
-      return priorityOrder[a.priority] - priorityOrder[b.priority];
-    }
-
-    // 3. If both are scheduled, sort by scheduledAt
-    const aTime = parseFloatingDatetime(a.scheduledAt).getTime();
-    const bTime = parseFloatingDatetime(b.scheduledAt).getTime();
-    if (aTime !== bTime) return aTime - bTime;
-
-    // 4. If same time, sort by priority
-    return priorityOrder[a.priority] - priorityOrder[b.priority];
-  });
+interface ChatRoom {
+  roomId: string;
+  otherUser: {
+    username: string;
+    age?: number;
+    country?: string;
+    bio?: string;
+    avatarUrl?: string;
+  },
+  mode: MatchmakingMode;
+  lastMessagePreview?: string;
+  unreadCount: number;
+  lastMessageAt: string;
+  isActive: boolean;
 }
 
-export default function DashboardPage() {
-  const { data: session } = useSession();
+interface MatchResponse {
+  matchFound: boolean;
+  roomId?: string;
+  otherUser?: {
+    username: string;
+    age?: number;
+    country?: string;
+    bio?: string;
+    avatarUrl?: string;
+  };
+  sharedInterests?: string[];
+  score?: number;
+}
+
+interface ConversationOpener {
+  id: number;
+  text: string;
+  createdAt: string;
+}
+
+export default function Dashboard() {
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [mode, setMode] = useState<MatchmakingMode>('FRIENDS');
+  const [matchmakingStatus, setMatchmakingStatus] = useState<
+    'IDLE' | 'SEARCHING' | 'MATCHED'
+  >('IDLE');
+  const [currentMatch, setCurrentMatch] = useState<MatchResponse | null>(null);
+  const [openers, setOpeners] = useState<ConversationOpener[]>([]);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [loadingOpeners, setLoadingOpeners] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showUserMenu, setShowUserMenu] = useState<string | null>(null);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [currentText, setCurrentText] = useState('');
-  const [textIndex, setTextIndex] = useState(0);
-  const [charIndex, setCharIndex] = useState(0);
-  // Removed unused state
-  // Remove showModal, use editingTaskId for edit, and a flag for add
-  // Removed unused state
-  const [showAddTask, setShowAddTask] = useState(false);
-  const [goalInput, setGoalInput] = useState('');
-  const [isTypingLocked, setIsTypingLocked] = useState(false);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [priority, setPriority] = useState('low');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  // Duration fields
-  const [durationValue, setDurationValue] = useState('');
-  const [durationUnit, setDurationUnit] = useState('minutes');
-  // Scheduled time for scheduledAt
-  const [scheduledTime, setScheduledTime] = useState('');
-  // Deadline fields (commented out in UI below, but keep state for possible use)
-  const [deadlineDate, setDeadlineDate] = useState('');
-  const [deadlineTime, setDeadlineTime] = useState('');
-  const [recurrenceRule, setRecurrenceRule] = useState('');
-  // Track if we're editing an existing task
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (session === null) {
-      router.replace('/');
-    }
-  }, [session, router]);
-
-
-  // const handleSetGoal = async () => {
-  //   setIsTypingLocked(true);
-
-  //   const res = await fetch('/api/subscription/status');
-  //   const data = await res.json();
-
-  //   if (!res.ok || !['active', 'trialing'].includes(data.subscriptionStatus)) {
-  //     router.push('/pricing');
-  //     return;
-  //   }
-
-  //   const aiRes = await fetch('/api/generate-plan', {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify({ goal: goalInput }),
-  //   });
-    
-  //   if (aiRes.ok && aiRes.headers.get('Content-Type')?.includes('application/json')) {
-  //     const { tasks, goalId } = await aiRes.json();
-
-  //     // for (const task of tasks) {
-  //     //   const {
-  //     //     title,
-  //     //     description,
-  //     //     scheduledAt,
-  //     //     duration,
-  //     //     isRecurring,
-  //     //     recurrenceRule,
-  //     //     priority
-  //     //   } = task;
-
-  //     //   await fetch('/api/tasks', {
-  //     //     method: 'POST',
-  //     //     headers: { 'Content-Type': 'application/json' },
-  //     //     body: JSON.stringify({
-  //     //       title,
-  //     //       description,
-  //     //       scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
-  //     //       duration,
-  //     //       isRecurring,
-  //     //       recurrenceRule,
-  //     //       priority: priority || 'low',
-  //     //       goalId,
-  //     //     }),
-  //     //   });
-  //     // }
-
-  //     setGoalInput('');
-  //     setIsTypingLocked(false);
-  //     window.location.reload(); // Or re-fetch tasks dynamically
-  //   } else {
-  //     const errorText = await aiRes.text();
-  //     console.error('Failed to generate plan:', errorText);
-  //   }
-  // };
-
-  // (Task interface already declared above)
-  
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  // Toggle for Today's Tasks vs Upcoming/Completed Tasks
-  const [showUpcoming, setShowUpcoming] = useState(false);
-  const [showCompleted, setShowCompleted] = useState(false);
-
-  useEffect(() => {
-    if (!session || isTypingLocked) return;
-
-    const fullText = typingTexts[textIndex];
-
-    const interval = setInterval(() => {
-      if (charIndex < fullText.length) {
-        setCurrentText(fullText.slice(0, charIndex + 1));
-        setCharIndex((prev) => prev + 1);
-      } else {
-        clearInterval(interval);
-        setTimeout(() => {
-          setCharIndex(0);
-          setTextIndex((prev) => (prev + 1) % typingTexts.length);
-          setCurrentText(''); // Clear before next text starts
-        }, 2000);
+  const fetchChatRooms = useCallback(async () => {
+    try {
+      const response = await fetch(getApiUrl('/api/v1/chat/rooms'), {
+        headers: getAuthHeaders(authToken || undefined),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setChatRooms(data);
       }
-    }, 100);
+    } catch (error) {
+      console.error('Error fetching chat rooms:', error);
+    }
+  }, [authToken]);
 
-    return () => clearInterval(interval);
-  }, [charIndex, textIndex, session, isTypingLocked]);
+  const fetchMessages = useCallback(
+    async (roomId: string) => {
+      try {
+        const response = await fetch(
+          getApiUrl(`/api/v1/chat/room/${roomId}/messages?page=0&size=50`),
+          { headers: getAuthHeaders(authToken || undefined) }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setMessages(data.content || []);
+        }
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+      }
+    },
+    [authToken]
+  );
+
+  const fetchConversationOpeners = useCallback(
+    async (roomId: string) => {
+      if (!authToken) return;
+      setLoadingOpeners(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          getApiUrl(`/api/v1/chat/room/${roomId}/openers`),
+          { headers: getAuthHeaders(authToken) }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setOpeners(data);
+        } else {
+          setError('Could not load AI conversation starters');
+        }
+      } catch (error) {
+        console.error('Error fetching openers:', error);
+        setError('Could not load AI conversation starters');
+      } finally {
+        setLoadingOpeners(false);
+      }
+    },
+    [authToken]
+  );
+
+  const fetchOnlineUsers = useCallback(async () => {
+    try {
+      const response = await fetch(getApiUrl('/api/v1/presence/online-users'), {
+        headers: getAuthHeaders(authToken || undefined),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setOnlineUsers(data);
+      }
+    } catch (error) {
+      console.error('Error fetching online users:', error);
+    }
+  }, [authToken]);
 
   useEffect(() => {
-    // const fetchTasks = async () => {
-    //   setIsLoading(true);
-    //   try {
-    //     const res = await fetch('/api/tasks');
-    //     const data = await res.json();
-    //     if (res.ok && data.data) {
-    //       setTasks(sortTasks(data.data));
-    //     }
-    //   } catch (err) {
-    //     console.error('Failed to fetch tasks:', err);
-    //   } finally {
-    //     setIsLoading(false);
-    //   }
-    // };
-    // fetchTasks();
-  }, []);
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+
+  useEffect(() => {
+    // Get auth token from localStorage (should be set during login)
+    const token = localStorage.getItem('authToken');
+    setAuthToken(token);
+  }, [session]);
+
+  useEffect(() => {
+    if (!authToken) return;
+
+    // Connect WebSocket
+    const client = connectWebSocket(
+      authToken,
+      () => {
+        console.log('WebSocket connected');
+      },
+      (error) => {
+        console.error('WebSocket error:', error);
+      }
+    );
+
+    // Subscribe to user-specific match events
+    if (session?.user?.name) {
+      client.subscribe(`/topic/user/${session.user.name}/match`, (message) => {
+        const match: MatchResponse = JSON.parse(message.body);
+        if (match.matchFound) {
+          setCurrentMatch(match);
+          setMatchmakingStatus('MATCHED');
+          setSelectedChat(match.roomId || null);
+          fetchConversationOpeners(match.roomId!);
+        }
+      });
+    }
+
+    return () => {
+      disconnectWebSocket();
+    };
+  }, [authToken, session, fetchConversationOpeners]);
+
+  useEffect(() => {
+    if (selectedChat && authToken) {
+      const client = getWebSocketClient();
+      if (!client || !client.connected) return;
+
+      // Subscribe to chat room messages
+      const subscription = client.subscribe(
+        `/topic/chat/${selectedChat}`,
+        (message) => {
+          const chatMessage: ChatMessage = JSON.parse(message.body);
+          setMessages((prev) => [...prev, chatMessage]);
+        }
+      );
+
+      // Subscribe to typing indicator
+      const typingSub = client.subscribe(
+        `/topic/chat/${selectedChat}/typing`,
+        (message) => {
+          const data = JSON.parse(message.body);
+          if (data.username && data.username !== session?.user?.name) {
+            setTypingUsers((prev) => new Set(prev).add(data.username));
+            setTimeout(() => {
+              setTypingUsers((prev) => {
+                const next = new Set(prev);
+                next.delete(data.username);
+                return next;
+              });
+            }, 3000);
+          }
+        }
+      );
+
+      return () => {
+        subscription.unsubscribe();
+        typingSub.unsubscribe();
+      };
+    }
+  }, [selectedChat, authToken, session]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (authToken) {
+      fetchChatRooms();
+      fetchOnlineUsers();
+      const interval = setInterval(fetchOnlineUsers, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [authToken, fetchChatRooms, fetchOnlineUsers]);
+
+  useEffect(() => {
+    if (selectedChat && authToken) {
+      fetchMessages(selectedChat);
+      fetchConversationOpeners(selectedChat);
+    }
+  }, [selectedChat, authToken, fetchConversationOpeners, fetchMessages]);
+
+  const handleStartMatchmaking = async () => {
+    if (!authToken) return;
+    setMatchmakingStatus('SEARCHING');
+    setError(null);
+    try {
+      // First, update preferences if needed
+      await fetch(getApiUrl('/api/v1/matchmaking/preferences'), {
+        method: 'POST',
+        headers: getAuthHeaders(authToken),
+        body: JSON.stringify({ mode }),
+      });
+
+      // Start matchmaking
+      const response = await fetch(getApiUrl('/api/v1/matchmaking/start'), {
+        method: 'POST',
+        headers: getAuthHeaders(authToken),
+      });
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: 'Failed to start matchmaking' }));
+        throw new Error(
+          errorData.message || errorData.error || 'Failed to start matchmaking'
+        );
+      }
+
+      const match: MatchResponse = await response.json();
+      if (match.matchFound) {
+        setCurrentMatch(match);
+        setMatchmakingStatus('MATCHED');
+        setSelectedChat(match.roomId || null);
+        if (match.roomId) {
+          fetchConversationOpeners(match.roomId);
+        }
+      } else {
+        // Poll for status
+        pollMatchmakingStatus();
+      }
+    } catch (error) {
+      console.error('Error starting matchmaking:', error);
+      setError(
+        error instanceof Error ? error.message : 'Failed to start matchmaking'
+      );
+      setMatchmakingStatus('IDLE');
+    }
+  };
+
+  const pollMatchmakingStatus = async () => {
+    if (!authToken) return;
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(getApiUrl('/api/v1/matchmaking/status'), {
+          headers: getAuthHeaders(authToken),
+        });
+        if (response.ok) {
+          const status = await response.json();
+          if (status.status === 'MATCHED' && status.match) {
+            setCurrentMatch(status.match);
+            setMatchmakingStatus('MATCHED');
+            setSelectedChat(status.match.roomId || null);
+            if (status.match.roomId) {
+              fetchConversationOpeners(status.match.roomId);
+            }
+            clearInterval(interval);
+          } else if (status.status === 'IDLE') {
+            setMatchmakingStatus('IDLE');
+            clearInterval(interval);
+          }
+        }
+      } catch (error) {
+        console.error('Error polling status:', error);
+        clearInterval(interval);
+      }
+    }, 2000);
+
+    // Stop after 60 seconds
+    setTimeout(() => clearInterval(interval), 60000);
+  };
+
+  const handleStopMatchmaking = async () => {
+    if (!authToken) return;
+    try {
+      await fetch(getApiUrl('/api/v1/matchmaking/stop'), {
+        method: 'POST',
+        headers: getAuthHeaders(authToken),
+      });
+      setMatchmakingStatus('IDLE');
+    } catch (error) {
+      console.error('Error stopping matchmaking:', error);
+    }
+  };
+
+  const handleSkipMatch = async () => {
+    if (!authToken || !selectedChat) return;
+    setError(null);
+    try {
+      const response = await fetch(getApiUrl('/api/v1/matchmaking/skip'), {
+        method: 'POST',
+        headers: getAuthHeaders(authToken),
+        body: JSON.stringify({ roomId: selectedChat }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to skip match');
+      }
+      setSelectedChat(null);
+      setCurrentMatch(null);
+      setMatchmakingStatus('IDLE');
+      setOpeners([]);
+      fetchChatRooms();
+    } catch (error) {
+      console.error('Error skipping match:', error);
+      setError(error instanceof Error ? error.message : 'Failed to skip match');
+    }
+  };
+
+  const handleBlockUser = async (username: string) => {
+    if (!authToken) return;
+    setError(null);
+    try {
+      const response = await fetch(getApiUrl('/api/v1/user/block'), {
+        method: 'POST',
+        headers: getAuthHeaders(authToken),
+        body: JSON.stringify({ blockedUsername: username }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to block user');
+      }
+      setShowBlockModal(false);
+      setShowUserMenu(null);
+      // Close chat if blocked user is in current chat
+      const currentRoom = chatRooms.find((r) => r.roomId === selectedChat);
+      if (currentRoom?.otherUser.username === username) {
+        setSelectedChat(null);
+      }
+      fetchChatRooms();
+    } catch (error) {
+      console.error('Error blocking user:', error);
+      setError(error instanceof Error ? error.message : 'Failed to block user');
+    }
+  };
+
+  const handleReportUser = async (username: string, reason: string) => {
+    if (!authToken || !reason.trim()) return;
+    setError(null);
+    try {
+      const response = await fetch(getApiUrl('/api/v1/user/report'), {
+        method: 'POST',
+        headers: getAuthHeaders(authToken),
+        body: JSON.stringify({ reportedUsername: username, reason }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to report user');
+      }
+      setShowReportModal(false);
+      setShowUserMenu(null);
+      setReportReason('');
+    } catch (error) {
+      console.error('Error reporting user:', error);
+      setError(
+        error instanceof Error ? error.message : 'Failed to report user'
+      );
+    }
+  };
+
+  const handleSendMessage = () => {
+    if (!newMessage.trim() || !selectedChat || !authToken) return;
+
+    const client = getWebSocketClient();
+    if (!client || !client.connected) {
+      console.error('WebSocket not connected');
+      return;
+    }
+
+    client.publish({
+      destination: `/app/chat/${selectedChat}/send`,
+      body: JSON.stringify({
+        content: newMessage,
+        type: 'TEXT',
+      }),
+    });
+
+    setNewMessage('');
+  };
+
+  const handleTyping = () => {
+    if (!selectedChat || !authToken) return;
+    const client = getWebSocketClient();
+    if (client && client.connected) {
+      client.publish({
+        destination: `/app/chat/${selectedChat}/typing`,
+        body: '',
+      });
+    }
+  };
+
+  const handleMarkAsRead = () => {
+    if (!selectedChat || !authToken) return;
+    const client = getWebSocketClient();
+    if (client && client.connected) {
+      client.publish({
+        destination: `/app/chat/${selectedChat}/read`,
+        body: '',
+      });
+    }
+  };
+
+  const modeIcons = {
+    FRIENDS: Users,
+    DATING: Heart,
+    RANDOM: Shuffle,
+    NETWORKING: Briefcase,
+  };
+
+  const modeLabels = {
+    FRIENDS: 'Friends',
+    DATING: 'Dating',
+    RANDOM: 'Random',
+    NETWORKING: 'Networking',
+  };
 
   return (
-    <div className="min-h-screen bg-white px-6 py-8">
-      {/* Header */}
-      <div className="max-w-4xl mx-auto text-left mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Today</h1>
-
-        <div className="mt-6">
-          <label className="block text-sm font-semibold text-gray-600 mb-1">
-            Need help scheduling?
-          </label>
-          <div className="flex gap-3 transform hover:scale-102 transition-transform duration-300">
-            <input
-              type="text"
-              value={goalInput}
-              onChange={(e) => {
-                setGoalInput(e.target.value);
-                setIsTypingLocked(true);
-              }}
-              placeholder={goalInput ? '' : currentText}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium bg-gray-50 cursor-text hover:bg-white hover:shadow-lg duration-200 focus:outline-none focus:ring-0"
+    <div className="flex h-screen bg-gray-100">
+      {/* Left Sidebar */}
+      <div className="w-1/3 bg-white border-r border-gray-200 flex flex-col">
+        {/* Profile Header */}
+        <div className="p-4 bg-gray-50 flex items-center justify-between border-b">
+          <div className="flex items-center">
+            <Image
+              src={session?.user?.image || '/default-avatar.png'}
+              alt="Profile"
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-full"
             />
-            <button
-              className="min-w-[100px] px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md shadow-lg transform transition duration-300 hover:scale-105 hover:shadow-xl"
-            >
-              Set Goal
-            </button>
+            <div className="ml-3">
+              <span className="font-semibold block">{session?.user?.name}</span>
+              <span className="text-xs text-gray-500">
+                {onlineUsers.includes(session?.user?.name || '')
+                  ? 'Online'
+                  : 'Offline'}
+              </span>
+            </div>
+          </div>
+          <MoreVertical className="text-gray-500 cursor-pointer" />
+        </div>
+
+        {/* Mode Selector */}
+        <div className="p-4 border-b bg-gray-50">
+          <label className="text-xs font-semibold text-gray-600 mb-2 block">
+            Mode
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {(Object.keys(modeIcons) as MatchmakingMode[]).map((m) => {
+              const Icon = modeIcons[m];
+              return (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={`p-2 rounded-lg flex items-center justify-center space-x-1 transition ${
+                    mode === m
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <Icon size={16} />
+                  <span className="text-xs">{modeLabels[m]}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
-      </div>
 
-      {/* Toggle for Today's Tasks vs Upcoming vs Completed */}
-      <div className="flex justify-center mb-6 gap-2">
-        <button
-          onClick={() => { setShowUpcoming(false); setShowCompleted(false); }}
-          className={`px-4 py-2 rounded-lg ${!showUpcoming && !showCompleted ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-600'}`}
-        >
-          Today
-        </button>
-        <button
-          onClick={() => { setShowUpcoming(true); setShowCompleted(false); }}
-          className={`px-4 py-2 rounded-lg ${showUpcoming && !showCompleted ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-600'}`}
-        >
-          Upcoming
-        </button>
-        <button
-          onClick={() => { setShowCompleted(true); setShowUpcoming(false); }}
-          className={`px-4 py-2 rounded-lg ${showCompleted ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-600'}`}
-        >
-          Completed
-        </button>
-      </div>
-
-      <div className="max-w-4xl mx-auto space-y-4">
-        {/* Overdue Section */}
-        {!showCompleted && !showUpcoming && tasks.some(isOverdue) && (
-          <div className="space-y-4 mb-6">
+        {/* Matchmaking Controls */}
+        <div className="p-4 border-b bg-gray-50">
+          {matchmakingStatus === 'IDLE' ? (
+            <button
+              onClick={handleStartMatchmaking}
+              disabled={!authToken}
+              className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Find someone to talk to
+            </button>
+          ) : matchmakingStatus === 'SEARCHING' ? (
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-red-600">Overdue</h2>
+              <div className="flex items-center space-x-2">
+                <Loader2 className="animate-spin text-blue-500" size={20} />
+                <span className="text-sm text-gray-700">Searching...</span>
+              </div>
               <button
-                className="text-xs font-semibold text-blue-600 hover:underline"
+                onClick={handleStopMatchmaking}
+                className="text-sm text-gray-500 hover:text-gray-700"
               >
-                Reschedule All
+                Stop
               </button>
             </div>
-            {tasks
-              .filter(isOverdue)
-              .map((task: any) => (
-                <div key={task.id} className="flex items-center justify-between border-b border-gray-200 py-2 relative">
-                  <div className="flex flex-col">
-                    <p className="text-sm font-medium text-gray-800">{task.title}</p>
-                    {(() => {
-                      // Overdue: Always show only the date (no time), until rescheduled
-                      const start = parseFloatingDatetime(task.scheduledAt);
-                      const formattedDate = start.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-                      return (
-                        <p className="text-xs text-gray-500">{formattedDate}</p>
-                      );
-                    })()}
-                  </div>
-                  <div className="absolute top-2 right-2 flex items-center gap-2">
-                    <button
-                      title="Reschedule"
-                      className="p-1 hover:bg-gray-100 rounded"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-blue-500">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </button>
-                    <button
-                      title="Delete"
-                      className="p-1 hover:bg-gray-100 rounded"
-                    >
-                      <TrashIcon className="w-4 h-4 text-red-500" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
-        )}
-        {/* Skeleton Loader */}
-        {isLoading && (
-          <div className="space-y-4 animate-pulse">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="border border-gray-200 rounded-lg p-6 bg-gray-50 shadow-sm">
-                <div className="h-4 w-1/2 bg-gray-200 rounded mb-2"></div>
-                <div className="h-3 w-1/3 bg-gray-100 rounded mb-4"></div>
-                <div className="h-2.5 bg-gray-200 rounded-full w-full mb-2"></div>
-              </div>
-            ))}
-          </div>
-        )}
-        {/* Main Task List */}
-        {tasks.length > 0 && (
-          <>
-            {tasks
-              .filter((task: Task) => {
-                if (showCompleted) {
-                  return task.isComplete;
-                }
-                if (showUpcoming) {
-                  if (task.isComplete) return false;
+          ) : (
+            <div className="text-sm text-green-600 font-semibold">
+              ✓ Match found!
+            </div>
+          )}
+          {error && (
+            <div className="mt-2 p-2 bg-red-50 text-red-700 text-xs rounded flex items-center space-x-1">
+              <AlertTriangle size={14} />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
 
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const scheduledAt = parseFloatingDatetime(task.scheduledAt);
-                  scheduledAt.setHours(0, 0, 0, 0);
-                  return scheduledAt > today;
-                }
-                // Today view: show incomplete for today + completed today
-                return isTaskForToday(task) || isCompletedToday(task);
-              })
-              .map((task: Task, index: number, filteredTasks: Task[]) => {
-                // Calculate showCompletedDivider for filtered list
-                const showCompletedDivider =
-                  !showUpcoming && !showCompleted &&
-                  index > 0 &&
-                  filteredTasks[index - 1].isComplete === false &&
-                  task.isComplete === true;
-                return (
-                  <div key={task.id}>
-                    {showCompletedDivider && (
-                      <div className="text-xs text-gray-400 uppercase tracking-wide py-2">
-                        Completed
-                      </div>
+        {/* Search Bar */}
+        <div className="p-4 border-b">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search chats"
+              className="w-full pl-10 pr-4 py-2 rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Chat List */}
+        <div className="flex-1 overflow-y-auto">
+          {chatRooms
+            .filter((room) =>
+              room.otherUser.username
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase())
+            )
+            .map((room) => (
+              <div
+                key={room.roomId}
+                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition ${
+                  selectedChat === room.roomId ? 'bg-blue-50' : ''
+                }`}
+                onClick={() => {
+                  setSelectedChat(room.roomId);
+                  setCurrentMatch(null);
+                  handleMarkAsRead();
+                }}
+              >
+                <div className="flex items-center">
+                  <div className="relative">
+                    <Image
+                      src={room.otherUser.avatarUrl || '/default-avatar.png'}
+                      alt={room.otherUser.username}
+                      width={48}
+                      height={48}
+                      className="w-12 h-12 rounded-full"
+                    />
+                    {onlineUsers.includes(room.otherUser.username) && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
                     )}
-                    <div className="flex items-start justify-between border-b border-gray-200 py-4 relative">
-                    <div className="flex items-center gap-3 w-full">
-                      {editingTaskId !== task.id && (
-                        <button
-                          className={`flex items-center justify-center w-5 h-5 rounded-full border-2 ${
-                            task.isComplete
-                              ? 'bg-red-600 border-red-600'
-                              : 'border-gray-400 hover:border-gray-600'
-                          } hover:shadow-md transition-all`}
-                          title="Mark Complete/Incomplete"
-                        />
+                  </div>
+                  <div className="ml-4 flex-1 min-w-0">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-semibold truncate">
+                        {room.otherUser.username}
+                      </h3>
+                      <span className="text-xs text-gray-500">
+                        {new Date(room.lastMessageAt).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-sm text-gray-500 truncate">
+                        {room.lastMessagePreview || 'No messages yet'}
+                      </p>
+                      {room.unreadCount > 0 && (
+                        <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                          {room.unreadCount}
+                        </span>
                       )}
-                      <div className={editingTaskId === task.id ? "flex-grow" : undefined}>
-                        {editingTaskId === task.id ? (
-                          <form
-                            onSubmit={async (e) => {
-                              e.preventDefault();
-                              setIsSubmitting(true);
-                              try {
-                                // Compose scheduledAt from dueDate and scheduledTime
-                                const composedScheduledAt = scheduledTime
-                                  ? new Date(`${dueDate}T${scheduledTime}`).toISOString()
-                                  : new Date(`${dueDate}T00:00`).toISOString();
-                                // Compose duration in minutes
-                                const composedDuration = durationValue
-                                  ? Number(durationUnit === 'hours' ? Number(durationValue) * 60 : durationValue)
-                                  : undefined;
-                                // Compose deadline (still present in data, but field is commented out below)
-                                const composedDeadline = deadlineDate
-                                  ? new Date(`${deadlineDate}T${deadlineTime || '00:00'}`).toISOString()
-                                  : undefined;
-                                const res = await fetch(`/api/tasks/${editingTaskId}/update`, {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    title,
-                                    description,
-                                    dueDate,
-                                    scheduledAt: composedScheduledAt,
-                                    priority: priority || 'low',
-                                    duration: composedDuration,
-                                    deadline: composedDeadline,
-                                    isRecurring: !!recurrenceRule,
-                                    recurrenceRule: recurrenceRule || undefined,
-                                  }),
-                                });
-                                if (res.ok) {
-                                  const updated = await res.json();
-                                  setTasks((prev) =>
-                                    sortTasks(
-                                      prev.map((t) => (t.id === updated.task.id ? { ...t, ...updated.task } : t))
-                                    )
-                                  );
-                                  setEditingTaskId(null);
-                                  setTitle('');
-                                  setDescription('');
-                                  setDueDate(new Date().toISOString().split('T')[0]);
-                                  setPriority('medium');
-                                  setDurationValue('');
-                                  setDurationUnit('minutes');
-                                  setScheduledTime('');
-                                  setDeadlineDate('');
-                                  setDeadlineTime('');
-                                  setRecurrenceRule('');
-                                }
-                              } catch (err) {
-                                console.error(err);
-                              } finally {
-                                setIsSubmitting(false);
-                              }
-                            }}
-                            className="w-full border border-gray-200 rounded-xl p-4 space-y-4"
-                          >
-                            <div>
-                              <input
-                                type="text"
-                                placeholder="Task title"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                              />
-                            </div>
-                            <div>
-                              <input
-                                type="text"
-                                placeholder="Description"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                              />
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 items-end">
-                              <div className="sm:col-span-2">
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
-                                <input
-                                  type="date"
-                                  value={dueDate}
-                                  onChange={(e) => setDueDate(e.target.value)}
-                                  className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                                  required
-                                />
-                              </div>
-                              <div className="sm:col-span-2">
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
-                                <input
-                                  type="time"
-                                  value={scheduledTime}
-                                  onChange={(e) => setScheduledTime(e.target.value)}
-                                  className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                                />
-                              </div>
-                              {/* 
-                              <div className="sm:col-span-2">
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Deadline (Optional)</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <input
-                                    type="date"
-                                    value={deadlineDate}
-                                    onChange={(e) => setDeadlineDate(e.target.value)}
-                                    className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                                  />
-                                  <input
-                                    type="time"
-                                    value={deadlineTime}
-                                    onChange={(e) => setDeadlineTime(e.target.value)}
-                                    className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                                  />
-                                </div>
-                              </div>
-                              */}
-                              <div className="sm:col-span-1 max-w-xs">
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
-                                <select
-                                  value={priority}
-                                  onChange={(e) => setPriority(e.target.value)}
-                                  className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                                >
-                                  <option value="low">Low</option>
-                                  <option value="medium">Medium</option>
-                                  <option value="high">High</option>
-                                </select>
-                              </div>
-                              <div className="sm:col-span-1 max-w-xs">
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Repeat</label>
-                                <select
-                                  value={recurrenceRule}
-                                  onChange={(e) => setRecurrenceRule(e.target.value)}
-                                  className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                                >
-                                  <option value="">None</option>
-                                  <option value="daily">Daily</option>
-                                  <option value="weekly">Weekly</option>
-                                  <option value="monthly">Monthly</option>
-                                  <option value="yearly">Yearly</option>
-                                </select>
-                              </div>
-                            </div>
-                            <div className="sm:col-span-2">
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
-                              <div className="flex gap-2">
-                                <input
-                                  type="number"
-                                  value={durationValue}
-                                  onChange={(e) => setDurationValue(e.target.value)}
-                                  className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                                  placeholder="Duration"
-                                  min="0"
-                                />
-                                <select
-                                  value={durationUnit}
-                                  onChange={(e) => setDurationUnit(e.target.value)}
-                                  className="border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                                >
-                                  <option value="minutes">Minutes</option>
-                                  <option value="hours">Hours</option>
-                                </select>
-                              </div>
-                            </div>
-                            <div className="flex justify-end gap-4 mt-4">
-                              <button
-                                type="button"
-                                onClick={() => setEditingTaskId(null)}
-                                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="submit"
-                                disabled={isSubmitting || !title.trim()}
-                                className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md"
-                              >
-                                {isSubmitting ? 'Saving...' : 'Save Changes'}
-                              </button>
-                            </div>
-                          </form>
-                        ) : (
-                          <>
-                            <div className="flex items-center justify-between gap-2">
-                              <p className={`text-base font-medium ${
-                                task.isComplete
-                                  ? 'line-through text-gray-400'
-                                  : task.priority === 'high'
-                                  ? 'text-red-600'
-                                  : task.priority === 'medium'
-                                  ? 'text-yellow-600'
-                                  : 'text-gray-900'
-                              }`}>
-                                {task.title}
-                                {/* Recurring icon */}
-                                {task.recurrenceRule && (
-                                  <ArrowPathIcon className="w-4 h-4 text-gray-400 ml-2 inline-block" title="Recurring task" />
-                                )}
-                              </p>
-                              {!showCompleted && (
-                                <div className="absolute right-0 top-0 mt-1 mr-1 flex items-center gap-1">
-                                  <button
-                                    onClick={() => {
-                                      setEditingTaskId(task.id);
-                                      setShowAddTask(false); // Close add modal if open
-                                      setTitle(task.title);
-                                      setDescription(task.description || '');
-                                      setDueDate(task.scheduledAt.split('T')[0]);
-                                      setPriority(task.priority);
-                                      setScheduledTime(task.scheduledAt ? new Date(task.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
-                                      setDurationValue(task.duration ? String(task.duration) : '');
-                                      setDurationUnit('minutes');
-                                      setDeadlineDate(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
-                                      setDeadlineTime(task.deadline ? new Date(task.deadline).toISOString().split('T')[1]?.slice(0,5) : '');
-                                      setRecurrenceRule(task.recurrenceRule || '');
-                                    }}
-                                    title="Edit"
-                                    className="p-1 hover:bg-gray-100 rounded"
-                                  >
-                                    <PencilIcon className="w-4 h-4 text-blue-500" />
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      try {
-                                        await fetch(`/api/tasks/${task.id}/delete`, { method: 'DELETE' });
-                                        setTasks((prev) => prev.filter((t) => t.id !== task.id));
-                                      } catch (err) {
-                                        console.error('Error deleting task:', err);
-                                      }
-                                    }}
-                                    title="Delete"
-                                    className="p-1 hover:bg-gray-100 rounded"
-                                  >
-                                    <TrashIcon className="w-4 h-4 text-red-500" />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                            {task.description && (
-                              <p className={`text-sm ${task.isComplete ? 'text-gray-300' : 'text-gray-600'}`}>
-                                {task.description}
-                              </p>
-                            )}
-                            {/* --- Upcoming: show next recurrence date --- */}
-                            {!task.isComplete && showUpcoming && (() => {
-                              const getNextDate = () => {
-                                const baseDate = parseFloatingDatetime(task.scheduledAt);
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                let nextDate = new Date(baseDate);
-                                while (nextDate <= today) {
-                                  if (task.recurrenceRule === 'daily') nextDate.setDate(nextDate.getDate() + 1);
-                                  else if (task.recurrenceRule === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
-                                  else if (task.recurrenceRule === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
-                                  else if (task.recurrenceRule === 'yearly') nextDate.setFullYear(nextDate.getFullYear() + 1);
-                                  else break;
-                                }
-                                return nextDate;
-                              };
-
-                              const next = getNextDate();
-                              if (next.getTime() <= (new Date(new Date().setHours(0,0,0,0))).getTime()) return null;
-                              const formatted = next.toLocaleDateString(undefined, {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                              });
-                              return <p className="text-xs text-gray-500 mt-1">{formatted}</p>;
-                            })()}
-                            {/* Scheduled time block (before deadline) */}
-                            {!task.isComplete && task.scheduledAt && (() => {
-                              const start = parseFloatingDatetime(task.scheduledAt);
-                              const hasTime = start.getHours() !== 0 || start.getMinutes() !== 0;
-                              if (!hasTime) return null;
-                              const startTime = start.toLocaleTimeString(undefined, {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                                hour12: true,
-                                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, // ensures local
-                              });
-                              const end =
-                                task.duration && hasTime
-                                  ? new Date(start.getTime() + task.duration * 60000)
-                                  : null;
-                              const endTime = end
-                                ? end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
-                                : null;
-                              return (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {endTime ? `${startTime} - ${endTime}` : startTime}
-                                </p>
-                              );
-                            })()}
-                            {/* Deadline block (after scheduled time) */}
-                            {/* {!task.isComplete && task.deadline && (() => {
-                              const deadlineDate = new Date(task.deadline);
-                              const now = new Date();
-                              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                              const tomorrow = new Date(today);
-                              tomorrow.setDate(today.getDate() + 1);
-
-                              const isToday = deadlineDate.toDateString() === today.toDateString();
-                              const isTomorrow = deadlineDate.toDateString() === tomorrow.toDateString();
-
-                              const time = deadlineDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
-                              const hasTime = deadlineDate.getHours() !== 0 || deadlineDate.getMinutes() !== 0;
-
-                              let label = '';
-                              if (isToday) {
-                                label = hasTime ? `Today at ${time}` : 'Today';
-                              } else if (isTomorrow) {
-                                label = hasTime ? `Tomorrow at ${time}` : 'Tomorrow';
-                              } else {
-                                label = deadlineDate.toLocaleDateString(undefined, {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                });
-                                if (hasTime) label += ` at ${time}`;
-                              }
-
-                              return <p className="text-xs text-gray-500 mt-1">Deadline: {label}</p>;
-                            })} */}
-                          </>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
+        </div>
+      </div>
+
+      {/* Right Side - Chat or Matchmaking View */}
+      <div className="flex-1 flex flex-col">
+        {selectedChat ? (
+          <>
+            {/* Chat Header */}
+            <div className="p-4 bg-white flex items-center justify-between border-b relative">
+              <div className="flex items-center">
+                <Image
+                  src={
+                    chatRooms.find((r) => r.roomId === selectedChat)?.otherUser
+                      .avatarUrl || '/default-avatar.png'
+                  }
+                  alt="Chat"
+                  width={40}
+                  height={40}
+                  className="w-10 h-10 rounded-full"
+                />
+                <div className="ml-3">
+                  <h2 className="font-semibold">
+                    {
+                      chatRooms.find((r) => r.roomId === selectedChat)
+                        ?.otherUser.username
+                    }
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    {onlineUsers.includes(
+                      chatRooms.find((r) => r.roomId === selectedChat)
+                        ?.otherUser.username || ''
+                    )
+                      ? 'Online'
+                      : 'Offline'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                {currentMatch && (
+                  <button
+                    onClick={handleSkipMatch}
+                    className="text-sm text-red-500 hover:text-red-700 flex items-center space-x-1"
+                  >
+                    <X size={16} />
+                    <span>Skip</span>
+                  </button>
+                )}
+                <div className="relative">
+                  <button
+                    onClick={() =>
+                      setShowUserMenu(
+                        showUserMenu === selectedChat
+                          ? null
+                          : selectedChat || null
+                      )
+                    }
+                    className="p-2 text-gray-500 hover:text-gray-700"
+                  >
+                    <MoreVertical size={20} />
+                  </button>
+                  {showUserMenu === selectedChat && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                      <button
+                        onClick={() => {
+                          const username = chatRooms.find(
+                            (r) => r.roomId === selectedChat
+                          )?.otherUser.username;
+                          if (username) {
+                            setShowBlockModal(true);
+                          }
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 rounded-t-lg flex items-center space-x-2"
+                      >
+                        <Shield size={16} />
+                        <span>Block User</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const username = chatRooms.find(
+                            (r) => r.roomId === selectedChat
+                          )?.otherUser.username;
+                          if (username) {
+                            setShowReportModal(true);
+                          }
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 rounded-b-lg flex items-center space-x-2"
+                      >
+                        <AlertTriangle size={16} />
+                        <span>Report User</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Conversation Starters (if new match) */}
+            {(openers.length > 0 || loadingOpeners || error) && (
+              <div className="p-4 bg-blue-50 border-b">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Sparkles size={16} className="text-blue-500" />
+                  <span className="text-sm font-semibold text-blue-700">
+                    Conversation Starters
+                  </span>
+                </div>
+                {loadingOpeners ? (
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <Loader2 className="animate-spin" size={16} />
+                    <span>Loading AI suggestions...</span>
+                  </div>
+                ) : error ? (
+                  <div className="text-xs text-gray-600">
+                    {error}. You can start with: Hey! How&rsquo;s your day going?
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {openers.map((opener) => (
+                      <button
+                        key={opener.id}
+                        onClick={() => {
+                          setNewMessage(opener.text);
+                          handleSendMessage();
+                        }}
+                        className="text-xs bg-white border border-blue-200 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-50 transition"
+                      >
+                        {opener.text}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${
+                    message.sender === session?.user?.name
+                      ? 'justify-end'
+                      : 'justify-start'
+                  } mb-4`}
+                >
+                  <div
+                    className={`max-w-[70%] rounded-lg p-3 ${
+                      message.sender === session?.user?.name
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-white text-gray-800'
+                    }`}
+                  >
+                    {message.type === 'TEXT' ? (
+                      <p>{message.content}</p>
+                    ) : message.type === 'IMAGE' ? (
+                      <Image
+                        src={message.mediaUrl || ''}
+                        alt="Shared"
+                        width={400}
+                        height={300}
+                        className="max-w-full rounded-lg"
+                      />
+                    ) : (
+                      <a
+                        href={message.mediaUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center text-blue-500"
+                      >
+                        <Paperclip size={16} />
+                        <span className="ml-2">Attachment</span>
+                      </a>
+                    )}
+                    <div className="text-xs mt-1 opacity-70">
+                      {new Date(message.timestamp).toLocaleTimeString()}
+                      {message.sender === session?.user?.name && (
+                        <span className="ml-2">
+                          {message.isRead ? '✓✓' : '✓'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {typingUsers.size > 0 && (
+                <div className="flex justify-start mb-4">
+                  <div className="bg-white rounded-lg p-3 text-gray-500 text-sm">
+                    {Array.from(typingUsers).join(', ')} typing...
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Message Input */}
+            <div className="p-4 bg-white border-t">
+              <div className="flex items-center space-x-2">
+                <button className="p-2 text-gray-500 hover:text-gray-700">
+                  <Smile size={24} />
+                </button>
+                <input
+                  type="text"
+                  placeholder="Type a message"
+                  className="flex-1 p-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newMessage}
+                  onChange={(e) => {
+                    setNewMessage(e.target.value);
+                    handleTyping();
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                />
+                <button
+                  className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition"
+                  onClick={handleSendMessage}
+                >
+                  <Send size={24} />
+                </button>
+              </div>
+            </div>
           </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+              <h2 className="text-2xl font-semibold text-gray-600 mb-2">
+                Select a chat or find a new match to start talking
+              </h2>
+              <p className="text-gray-500">
+                {matchmakingStatus === 'SEARCHING'
+                  ? 'Searching for your perfect match...'
+                  : 'Click "Find someone to talk to" to get started'}
+              </p>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Show Recently Completed Tasks for Today */}
-      {/* {!showCompleted && !showUpcoming && tasks.some(isCompletedToday) && (
-        <>
-          <div className="text-xs text-gray-400 uppercase tracking-wide py-2">Completed</div>
-          {tasks
-            .filter(isCompletedToday)
-            .map((task) => (
-              <div key={task.id} className="flex justify-between items-center py-2 border-b border-gray-100">
-                <div>
-                  <p className="text-sm text-gray-400 line-through">{task.title}</p>
-                  {task.description && <p className="text-xs text-gray-400">{task.description}</p>}
-                </div>
-              </div>
-            ))}
-        </>
-      )} */}
-
-      {/* Hide Add Task button and form in Completed view */}
-      {!showCompleted && (
-        <div className="max-w-4xl mx-auto mt-10">
-          {!showAddTask && (
-            <button
-              onClick={() => {
-                setShowAddTask(true);
-                setEditingTaskId(null);
-                setTitle('');
-                setDescription('');
-                setDueDate(new Date().toISOString().split('T')[0]);
-                setPriority('low');
-                setDurationValue('');
-                setDeadlineDate('');
-                setDeadlineTime('');
-                setRecurrenceRule('');
-              }}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
-            >
-              <PlusIcon className="h-5 w-5 mr-2 text-gray-500" />
-              Add Task
-            </button>
-          )}
-          {showAddTask && (
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setIsSubmitting(true);
-                try {
-                  // Compose scheduledAt from dueDate and scheduledTime
-                  const composedScheduledAt = scheduledTime
-                    ? new Date(`${dueDate}T${scheduledTime}`).toISOString()
-                    : new Date(`${dueDate}T00:00`).toISOString();
-                  // Compose duration in minutes
-                  const composedDuration = durationValue
-                    ? Number(durationUnit === 'hours' ? Number(durationValue) * 60 : durationValue)
-                    : undefined;
-                  // Compose deadline (still present in data, but field is commented out below)
-                  const composedDeadline = deadlineDate
-                    ? new Date(`${deadlineDate}T${deadlineTime || '00:00'}`).toISOString()
-                    : undefined;
-                  const res = await fetch('/api/tasks', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      title,
-                      description,
-                      dueDate,
-                      scheduledAt: composedScheduledAt,
-                      priority: priority || 'low',
-                      duration: composedDuration,
-                      deadline: composedDeadline,
-                      isRecurring: !!recurrenceRule,
-                      recurrenceRule: recurrenceRule || undefined,
-                    }),
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    setTasks((prev) => sortTasks([...prev, data.data]));
-                    setShowAddTask(false);
-                    setTitle('');
-                    setDescription('');
-                    setDueDate(new Date().toISOString().split('T')[0]);
-                    setPriority('low');
-                    setDurationValue('');
-                    setDurationUnit('minutes');
-                    setScheduledTime('');
-                    setDeadlineDate('');
-                    setDeadlineTime('');
-                    setRecurrenceRule('');
-                  }
-                } catch (err) {
-                  console.error(err);
-                } finally {
-                  setIsSubmitting(false);
+      {/* Block Modal */}
+      {showBlockModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Block User</h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to block{' '}
+              <strong>
+                {
+                  chatRooms.find((r) => r.roomId === selectedChat)?.otherUser
+                    .username
                 }
-              }}
-              className="border border-gray-200 rounded-xl p-4 space-y-4"
-            >
-              <div>
-                <input
-                  type="text"
-                  placeholder="Task title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                />
-              </div>
-              <div>
-                <input
-                  type="text"
-                  placeholder="Description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 items-end">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                    required
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
-                  <input
-                    type="time"
-                    value={scheduledTime}
-                    onChange={(e) => setScheduledTime(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                  />
-                </div>
-                {/* 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Deadline (Optional)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="date"
-                      value={deadlineDate}
-                      onChange={(e) => setDeadlineDate(e.target.value)}
-                      className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                    />
-                    <input
-                      type="time"
-                      value={deadlineTime}
-                      onChange={(e) => setDeadlineTime(e.target.value)}
-                      className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                    />
-                  </div>
-                </div>
-                */}
-                <div className="sm:col-span-1 max-w-xs">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-                <div className="sm:col-span-1 max-w-xs">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Repeat</label>
-                  <select
-                    value={recurrenceRule}
-                    onChange={(e) => setRecurrenceRule(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                  >
-                    <option value="">None</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                </div>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={durationValue}
-                    onChange={(e) => setDurationValue(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                    placeholder="Duration"
-                    min="0"
-                  />
-                  <select
-                    value={durationUnit}
-                    onChange={(e) => setDurationUnit(e.target.value)}
-                    className="border border-gray-300 rounded-md p-2 text-sm text-gray-800"
-                  >
-                    <option value="minutes">Minutes</option>
-                    <option value="hours">Hours</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex justify-end gap-4 mt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddTask(false);
-                  }}
-                  className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !title.trim()}
-                  className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md"
-                >
-                  {isSubmitting ? 'Adding...' : 'Add Task'}
-                </button>
-              </div>
-            </form>
-          )}
+              </strong>
+              ? You won&rsquo;t be able to receive messages from them.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  const username = chatRooms.find(
+                    (r) => r.roomId === selectedChat
+                  )?.otherUser.username;
+                  if (username) {
+                    handleBlockUser(username);
+                  }
+                }}
+                className="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition"
+              >
+                Block
+              </button>
+              <button
+                onClick={() => setShowBlockModal(false)}
+                className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Report User</h3>
+            <p className="text-gray-600 mb-4">
+              Report{' '}
+              <strong>
+                {
+                  chatRooms.find((r) => r.roomId === selectedChat)?.otherUser
+                    .username
+                }
+              </strong>{' '}
+              for inappropriate behavior.
+            </p>
+            <textarea
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder="Please describe the issue..."
+              className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
+            />
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  const username = chatRooms.find(
+                    (r) => r.roomId === selectedChat
+                  )?.otherUser.username;
+                  if (username) {
+                    handleReportUser(username, reportReason);
+                  }
+                }}
+                disabled={!reportReason.trim()}
+                className="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Report
+              </button>
+              <button
+                onClick={() => {
+                  setShowReportModal(false);
+                  setReportReason('');
+                }}
+                className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

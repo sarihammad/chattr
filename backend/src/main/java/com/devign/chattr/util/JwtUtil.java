@@ -1,50 +1,86 @@
 package com.devign.chattr.util;
 
-import java.util.Date;
-
-import javax.crypto.SecretKey;
-
-import java.util.concurrent.ConcurrentHashMap;
-
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Component
 public class JwtUtil {
-    private static final long EXPIRATION_TIME = 86400000;
-    private static final SecretKey SECRET = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-    private static final ConcurrentHashMap<String, Boolean> invalidatedTokens = new ConcurrentHashMap<>();
+    private static final long REFRESH_EXPIRATION_TIME = 604800000; // 7 days
 
-    public static String generateToken(String username) {
+    private final byte[] secretBytes;
+    private final long expirationMs;
+    private final ConcurrentHashMap<String, Boolean> invalidatedTokens = new ConcurrentHashMap<>();
+
+    public JwtUtil(@Value("${jwt.secret}") String secret,
+                   @Value("${jwt.expiration}") long expirationMs) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("JWT secret is not configured");
+        }
+        this.secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+        this.expirationMs = expirationMs;
+    }
+
+    public String generateToken(String username) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + expirationMs);
+
         return Jwts.builder()
                 .setSubject(username)
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
-                .signWith(SECRET)
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(SignatureAlgorithm.HS512, secretBytes)
                 .compact();
     }
 
-    public static String validateToken(String token) {
+    public String generateRefreshToken(String username) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + REFRESH_EXPIRATION_TIME))
+                .signWith(SignatureAlgorithm.HS512, secretBytes)
+                .compact();
+    }
+
+    public String validateToken(String token) {
         try {
-            if (invalidatedTokens.containsKey(token)) {
-                return null; // Token has been invalidated
-            }
-            return Jwts.parserBuilder()
-                    .setSigningKey(SECRET)
-                    .build()
+            Claims claims = Jwts.parser()
+                    .setSigningKey(secretBytes)
                     .parseClaimsJws(token)
-                    .getBody()
-                    .getSubject();
-        } catch (JwtException e) {
+                    .getBody();
+
+            return claims.getSubject();
+        } catch (Exception e) {
             return null;
         }
     }
 
-    public static void invalidateToken(String token) {
+    public boolean isTokenExpired(String token) {
+        try {
+            Date expiration = Jwts.parserBuilder()
+                    .setSigningKey(secretBytes)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody()
+                    .getExpiration();
+            return expiration.before(new Date());
+        } catch (JwtException e) {
+            return true;
+        }
+    }
+
+    public void invalidateToken(String token) {
         invalidatedTokens.put(token, true);
     }
 
-    public static boolean isTokenInvalidated(String token) {
+    public boolean isTokenInvalidated(String token) {
         return invalidatedTokens.containsKey(token);
     }
 }
