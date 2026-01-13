@@ -51,7 +51,7 @@ class AiClientServiceTest {
                 .build();
 
         testPreferences = MatchmakingPreferencesDTO.builder()
-                .mode(MatchmakingMode.FRIENDS)
+                .mode(MatchmakingMode.DATING)
                 .interests(Arrays.asList("coding", "music"))
                 .build();
     }
@@ -118,7 +118,7 @@ class AiClientServiceTest {
 
         // When
         List<String> openers = aiClientService.generateOpeners(
-                testUser, match, sharedInterests, MatchmakingMode.FRIENDS);
+                testUser, match, sharedInterests, MatchmakingMode.DATING);
 
         // Then - should return default openers if service fails
         assertNotNull(openers);

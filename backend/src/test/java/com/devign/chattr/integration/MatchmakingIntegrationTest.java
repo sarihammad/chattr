@@ -72,11 +72,11 @@ public class MatchmakingIntegrationTest {
         user3 = createUser("carol", "carol@test.com", "password", 22, "US", "New York");
 
         // Create preferences
-        createPreferences(user1, MatchmakingMode.FRIENDS, "CA", "Toronto", 
+        createPreferences(user1, MatchmakingMode.DATING, "CA", "Toronto", 
                 Arrays.asList("music", "coding"), 20, 30);
-        createPreferences(user2, MatchmakingMode.FRIENDS, "CA", "Toronto",
+        createPreferences(user2, MatchmakingMode.DATING, "CA", "Toronto",
                 Arrays.asList("music", "coding"), 20, 30);
-        createPreferences(user3, MatchmakingMode.FRIENDS, "US", "New York",
+        createPreferences(user3, MatchmakingMode.DATING, "US", "New York",
                 Arrays.asList("music"), 20, 30);
     }
 

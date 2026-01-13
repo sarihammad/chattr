@@ -1,7 +1,21 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-export const getApiUrl = () => {
-  return API_BASE_URL;
+export const getApiUrl = (endpoint?: string) => {
+  if (!endpoint) {
+    return API_BASE_URL;
+  }
+  // If endpoint already starts with http, return as-is
+  if (endpoint.startsWith('http')) {
+    return endpoint;
+  }
+  // If endpoint doesn't start with /, add it
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  // If endpoint already starts with /api/v1, just prepend base URL
+  if (normalizedEndpoint.startsWith('/api/v1')) {
+    return `${API_BASE_URL}${normalizedEndpoint}`;
+  }
+  // Otherwise, prepend /api/v1
+  return `${API_BASE_URL}/api/v1${normalizedEndpoint}`;
 };
 
 export const getAuthHeaders = (token?: string) => {

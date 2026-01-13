@@ -42,6 +42,9 @@ public class WebSocketIntegrationTest {
     @Autowired
     private ChatRoomRepository chatRoomRepository;
 
+    @Autowired
+    private JwtUtil jwtUtil;
+
     private WebSocketStompClient stompClient;
     private StompSession stompSession;
 
@@ -52,7 +55,7 @@ public class WebSocketIntegrationTest {
         stompClient = new WebSocketStompClient(new SockJsClient(transports));
         stompClient.setMessageConverter(new MappingJackson2MessageConverter());
 
-        String token = JwtUtil.generateToken("testuser");
+        String token = jwtUtil.generateToken("testuser");
         StompHeaders connectHeaders = new StompHeaders();
         connectHeaders.add("Authorization", "Bearer " + token);
 
