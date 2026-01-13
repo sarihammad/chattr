@@ -30,8 +30,32 @@ public class User {
     @Column(nullable = false)
     private String gender;
 
+    @Column
+    private String orientation; // "STRAIGHT", "GAY", "BISEXUAL", "PANSEXUAL", etc.
+
+    @Column
+    private String seeking; // "MEN", "WOMEN", "EVERYONE"
+
+    @Column
+    private String bio;
+
+    @Column
+    private Integer age;
+
+    @Column
+    private String country;
+
+    @Column
+    private String city;
+
+    @Column
+    private String avatarUrl;
+
     @Column(nullable = false)
     private Boolean isOnline;
+
+    @Column(nullable = false)
+    private Boolean matchingPaused = false;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
@@ -48,5 +72,12 @@ public class User {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public static class UserBuilder {
+        public UserBuilder passwordHash(String passwordHash) {
+            this.password = passwordHash;
+            return this;
+        }
     }
 }
