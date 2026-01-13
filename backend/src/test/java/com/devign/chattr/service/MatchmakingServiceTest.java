@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
@@ -48,6 +49,9 @@ class MatchmakingServiceTest {
     @Mock
     private ChatService chatService;
 
+    @Mock
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
     @InjectMocks
     private MatchmakingService matchmakingService;
 
@@ -74,7 +78,7 @@ class MatchmakingServiceTest {
     }
 
     @Test
-    void testUpdatePreferences() {
+    void testUpdatePreferences() throws Exception {
         // Given
         MatchmakingPreferencesDTO dto = MatchmakingPreferencesDTO.builder()
                 .mode(MatchmakingMode.DATING)
@@ -88,6 +92,10 @@ class MatchmakingServiceTest {
         when(preferencesRepository.findByUser(testUser)).thenReturn(Optional.empty());
         when(preferencesRepository.save(any(MatchmakingPreferences.class))).thenReturn(testPreferences);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        
+        // Inject ObjectMapper via reflection
+        org.springframework.test.util.ReflectionTestUtils.setField(matchmakingService, "objectMapper", objectMapper);
 
         // When
         matchmakingService.updatePreferences("testuser", dto);
