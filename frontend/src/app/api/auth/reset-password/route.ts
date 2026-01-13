@@ -1,51 +1,26 @@
 // src/app/api/auth/reset-password/route.ts
-import { db } from "@/lib/db";
-import bcrypt from "bcryptjs";
+// Password reset is handled by Spring Boot backend
+// This route is disabled for v1 - use Spring Boot endpoints instead
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { rateLimit } from "@/middleware/rateLimit";
-
-const schema = z.object({
-  token: z.string(),
-  password: z.string().min(6),
-});
 
 export async function POST(req: Request) {
-  rateLimit(req, 5, 60000);
-  const body = await req.json();
-  const result = schema.safeParse(body);
-  if (!result.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  // Redirect to Spring Boot backend for password reset
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  
+  try {
+    const body = await req.json();
+    const response = await fetch(`${API_URL}/api/v1/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Password reset service unavailable. Please contact support.' },
+      { status: 503 }
+    );
   }
-  const { token, password } = result.data;
-
-  if (!token || !password) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-  }
-
-  const user = await db.user.findFirst({
-    where: {
-      resetToken: token,
-      resetTokenExpiry: {
-        gt: new Date(),
-      },
-    },
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "Invalid or expired token" }, { status: 400 });
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  await db.user.update({
-    where: { id: user.id },
-    data: {
-      password: hashedPassword,
-      resetToken: null,
-      resetTokenExpiry: null,
-    },
-  });
-
-  return NextResponse.json({ message: "Password reset successful" });
 }

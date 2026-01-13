@@ -1,43 +1,27 @@
 // src/app/api/auth/register/route.ts
+// Registration is handled by Spring Boot backend
+// This route proxies to Spring Boot backend
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { rateLimit } from "@/middleware/rateLimit";
-import bcrypt from "bcryptjs";
-import { z } from "zod";
-
-const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-});
 
 export async function POST(request: Request) {
-  rateLimit(request, 10, 60000);
+  // Proxy to Spring Boot backend for registration
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  
   try {
     const body = await request.json();
-    const result = registerSchema.safeParse(body);
-    if (!result.success) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
-    }
-
-    const { email, password } = result.data;
-
-    const existingUser = await db.user.findUnique({ where: { email } });
-    if (existingUser) {
-      return NextResponse.json({ error: "User already exists" }, { status: 409 });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    await db.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-      },
+    const response = await fetch(`${API_URL}/api/v1/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
-
-    return NextResponse.json({ message: "User registered successfully" });
+    
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error("Registration failed:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Registration service unavailable. Please try again later.' },
+      { status: 503 }
+    );
   }
 }
