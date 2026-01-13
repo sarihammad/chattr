@@ -178,15 +178,13 @@ export default function SettingsPage() {
         <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl mb-8">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Profile</h2>
           <div className="flex items-center gap-4">
-            {session.user.image && (
-              <Image
-                src={session.user.image}
-                alt="User avatar"
-                width={64}
-                height={64}
-                className="rounded-full object-cover"
-              />
-            )}
+            <Image
+              src="/default-avatar.png"
+              alt="User avatar"
+              width={64}
+              height={64}
+              className="rounded-full object-cover"
+            />
             <div>
               <p className="font-medium text-gray-800">{session.user.name}</p>
               <p className="text-gray-500 text-sm">{session.user.email}</p>
