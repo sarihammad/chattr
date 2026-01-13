@@ -85,6 +85,9 @@ jobs:
 
       - name: Build frontend
         working-directory: ./frontend
+        env:
+          NEXTAUTH_URL: http://localhost:3000
+          NEXTAUTH_SECRET: test-secret-for-ci-build
         run: npm run build
 
       - name: Install Playwright
