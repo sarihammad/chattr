@@ -2,172 +2,290 @@
 
 import Link from 'next/link';
 import {
-  SparklesIcon,
-  ClockIcon,
-  CalendarDaysIcon,
-  ChartBarIcon,
-  ChatBubbleBottomCenterIcon,
-  CheckCircleIcon,
-} from '@heroicons/react/24/solid';
+  Heart,
+  MessageCircle,
+  CheckCircle2,
+  ArrowRight,
+  Users,
+  Clock,
+  Shield,
+  Sparkles,
+} from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
-const features = [
-  {
-    title: 'Track Your Progress',
-    description:
-      'Visualize your journey with real-time analytics and see how far you’ve come.',
-    icon: ChartBarIcon,
-    color: 'text-blue-400',
-  },
-  {
-    title: 'Smart Task Scheduling',
-    description:
-      'Automatically distribute your tasks throughout the week to optimize productivity.',
-    icon: CalendarDaysIcon,
-    color: 'text-yellow-400',
-  },
-  {
-    title: 'Daily Focus List',
-    description:
-      'Get a clear list of priorities every day to stay focused and productive.',
-    icon: ClockIcon,
-    color: 'text-emerald-400',
-  },
-  {
-    title: 'Achievements & Milestones',
-    description:
-      'Celebrate your wins and stay motivated with goal-based milestones.',
-    icon: CheckCircleIcon,
-    color: 'text-purple-400',
-  },
-  {
-    title: 'Collaborative Planning',
-    description:
-      'Work together with friends, family, or colleagues to achieve bigger goals.',
-    icon: ChatBubbleBottomCenterIcon,
-    color: 'text-indigo-400',
-  },
-  {
-    title: 'Minimalist, Motivating Design',
-    description:
-      'Focus on what matters with a clutter-free, engaging user interface.',
-    icon: SparklesIcon,
-    color: 'text-pink-400',
-  },
-];
-
-export default function LandingPage() {
+export default function Home() {
   const { data: session } = useSession();
   const router = useRouter();
 
   useEffect(() => {
     if (session?.user) {
-      router.replace('/dashboard');
+      router.replace('/introductions');
     }
-  }, [session]);
+  }, [session, router]);
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <div className="mx-auto px-6 sm:px-8 lg:px-12 pt-40 text-center bg-gradient-to-b from-white via-neutral-50 to-white min-h-[calc(100vh-64px)]">
-        <h1 className="text-5xl font-bold text-gray-900 mb-4">
-          Organize. Focus. Achieve.
-        </h1>
-        <p className="text-lg text-gray-700 mb-8 md:px-32 lg:px-64">
-          Simplify your life and boost your productivity. Plan your goals and watch your progress grow.
-        </p>
-        <Link
-          href="/register"
-          className="inline-flex items-center px-6 py-3 text-white bg-red-600 hover:bg-red-700 rounded-xl font-medium text-lg shadow-lg transition duration-300 transform hover:scale-105 hover:shadow-xl"
-        >
-          Get Started Free
-        </Link>
-        <p className="text-sm text-gray-400 mt-2">No credit card required</p>
-      </div>
-
-      {/* App Preview Section */}
-      <div
-        className="py-20 w-full"
-        style={{
-          backgroundImage: "url('/assets/images/blue-white-gradient.png')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="px-6 sm:px-8 lg:px-12 text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">See It In Action</h2>
-          <p className="text-gray-700 mb-12">
-            Watch how easy it is to set goals, schedule tasks, and stay consistent.
-          </p>
-
-          <div className="mb-16 mx-auto max-w-4xl rounded-xl overflow-hidden shadow-xl border border-gray-200 transform transition-transform duration-300 hover:scale-105">
-            <video
-              src="/assets/images/app-demo.mp4"
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-auto object-cover"
+      {/* Navigation */}
+      <nav className="container mx-auto px-6 py-6 sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Heart className="h-7 w-7 text-rose-500" />
+            <span className="text-2xl font-semibold text-gray-900">
+              Chattr
+            </span>
+          </div>
+          <div className="flex items-center space-x-6">
+            <Link
+              href="/login"
+              className="text-gray-600 hover:text-gray-900 transition-colors font-medium"
             >
-              Sorry, your browser does not support embedded videos.
-            </video>
+              Sign In
+            </Link>
+            <Link
+              href="/register"
+              className="rounded-lg bg-rose-500 px-6 py-2.5 text-white font-medium hover:bg-rose-600 transition-colors"
+            >
+              Get Started
+            </Link>
           </div>
         </div>
-      </div>
+      </nav>
 
-      {/* Features */}
-      <div className="w-full py-20 bg-gray-100">
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
+      <main>
+        {/* Hero Section */}
+        <section className="container mx-auto px-6 py-20 md:py-32">
+          <div className="text-center mb-16 max-w-3xl mx-auto">
+            <h1 className="mb-6 text-5xl md:text-6xl font-bold text-gray-900 leading-tight tracking-tight">
+              Fewer matches.
+              <br />
+              <span className="text-rose-500">Better matches.</span>
+            </h1>
+
+            <p className="mb-12 text-xl md:text-2xl text-gray-600 max-w-2xl mx-auto leading-relaxed font-light">
+              Chattr is anti-swipe matchmaking for people who want something real.
+              <br />
+              <span className="text-gray-900 font-medium">
+                No swiping. No noise. Just a few great introductions.
+              </span>
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+              <Link
+                href="/register"
+                className="group rounded-lg bg-rose-500 px-8 py-4 text-lg font-medium text-white hover:bg-rose-600 transition-all flex items-center space-x-2 shadow-sm"
+              >
+                <span>Get today&apos;s introductions</span>
+                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+
+            {/* Social Proof */}
+            <div className="flex flex-wrap justify-center items-center gap-8 text-gray-500 text-sm">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span>No swiping</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span>1–3 introductions per day</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span>Values-based matching</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* How It Works */}
+        <section id="how-it-works" className="container mx-auto px-6 py-24 bg-gray-50">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Why Choose Us?</h2>
-            <p className="text-gray-600 text-lg">
-              Unlock your productivity potential with powerful, easy-to-use tools.
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+              How it works
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Three simple steps to meaningful connections
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {features.map((feature) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-5xl mx-auto">
+            {[
+              {
+                step: '1',
+                title: 'Complete your profile',
+                description:
+                  'Share your values, lifestyle, and what you&apos;re looking for. The more authentic you are, the better your matches.',
+                icon: Users,
+              },
+              {
+                step: '2',
+                title: 'Receive daily introductions',
+                description:
+                  'Each day, you&apos;ll receive 1–3 carefully selected introductions based on compatibility, not just looks.',
+                icon: Heart,
+              },
+              {
+                step: '3',
+                title: 'Connect intentionally',
+                description:
+                  'Review each introduction thoughtfully. When you both accept, start a meaningful conversation.',
+                icon: MessageCircle,
+              },
+            ].map((item, idx) => (
               <div
-                key={feature.title}
-                className="bg-white rounded-xl p-6 shadow-md border border-gray-200 transform transition-transform duration-300 hover:scale-105"
+                key={idx}
+                className="text-center"
               >
-                <feature.icon className={`w-10 h-10 ${feature.color} mb-4`} />
-                <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                  {feature.title}
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-rose-100 text-rose-600 text-2xl font-semibold mb-6">
+                  {item.step}
+                </div>
+                <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center mb-6 mx-auto">
+                  <item.icon className="h-6 w-6 text-gray-700" />
+                </div>
+                <h3 className="text-2xl font-semibold text-gray-900 mb-4">
+                  {item.title}
                 </h3>
-                <p className="text-gray-600">{feature.description}</p>
+                <p className="text-gray-600 leading-relaxed">
+                  {item.description}
+                </p>
               </div>
             ))}
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* CTA Section */}
-      <div
-        className="py-20 w-full"
-        style={{
-          backgroundImage: "url('/assets/images/blue-white-gradient.png')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="text-center px-6 sm:px-8 lg:px-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Ready to take control of your goals?
-          </h2>
-          <p className="text-gray-700 text-lg mb-8">
-            Join thousands of users boosting their productivity with our platform.
-          </p>
-          <Link
-            href="/register"
-            className="inline-flex items-center px-8 py-3 text-lg font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300"
-          >
-            Get Started Now
-          </Link>
+        {/* Why Anti-Swipe */}
+        <section className="container mx-auto px-6 py-24">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                Built for people who want something real
+              </h2>
+              <p className="text-xl text-gray-600">
+                We cap matches so you can actually focus.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              <div className="space-y-6">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-rose-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Slower pace
+                    </h3>
+                    <p className="text-gray-600">
+                      Limited daily opportunities mean you can give each introduction the attention it deserves.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
+                    <Sparkles className="h-5 w-5 text-rose-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Deeper compatibility
+                    </h3>
+                    <p className="text-gray-600">
+                      We match based on values, lifestyle, and shared goals—not just surface-level preferences.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
+                    <Users className="h-5 w-5 text-rose-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Fewer chats
+                    </h3>
+                    <p className="text-gray-600">
+                      We cap active conversations so you&apos;re not overwhelmed. Quality over quantity.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
+                    <Shield className="h-5 w-5 text-rose-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Trust & safety
+                    </h3>
+                    <p className="text-gray-600">
+                      Report and block features, plus basic moderation to keep conversations respectful.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA */}
+        <section className="container mx-auto px-6 py-24 bg-gray-50">
+          <div className="rounded-2xl bg-white border border-gray-200 p-12 md:p-16 text-center max-w-3xl mx-auto shadow-sm">
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+              Ready to find something real?
+            </h2>
+            <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
+              Join Chattr and receive your first introductions today.
+              <br />
+              <span className="font-medium text-gray-900">
+                No swiping. No noise. Just meaningful connections.
+              </span>
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                href="/register"
+                className="group inline-flex items-center justify-center rounded-lg bg-rose-500 px-10 py-4 text-lg font-medium text-white hover:bg-rose-600 transition-colors space-x-2"
+              >
+                <span>Get started</span>
+                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <footer className="container mx-auto px-6 py-12 border-t border-gray-100">
+        <div className="flex flex-col md:flex-row items-center justify-between space-y-6 md:space-y-0">
+          <div className="flex items-center space-x-2">
+            <Heart className="h-5 w-5 text-rose-500" />
+            <span className="text-lg font-semibold text-gray-900">
+              Chattr
+            </span>
+            <span className="text-gray-400 text-sm ml-2">© 2024</span>
+          </div>
+          <div className="flex flex-wrap justify-center gap-6 text-gray-500 text-sm">
+            <Link href="/about" className="hover:text-gray-900 transition-colors">
+              About
+            </Link>
+            <Link href="/faq" className="hover:text-gray-900 transition-colors">
+              FAQ
+            </Link>
+            <Link
+              href="/contact"
+              className="hover:text-gray-900 transition-colors"
+            >
+              Contact
+            </Link>
+          </div>
         </div>
-      </div>
+        <div className="mt-8 text-center text-gray-400 text-sm">
+          Fewer matches. Better matches.
+        </div>
+      </footer>
     </div>
   );
 }
