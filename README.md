@@ -1,231 +1,80 @@
 # Chattr
 
-**Anti-swipe matchmaking for people who want something real.**
+A values-based matchmaking platform built with Spring Boot and Next.js. Supports intentional introductions, compatibility scoring, and real-time messaging. Designed for quality over quantity with anti-swipe matching.
 
-Chattr matches based on values, lifestyle, and compatibility—not just looks. You receive 1–3 carefully selected introductions per day, so you can focus on quality connections.
+## Architecture
 
-**Tagline:** "Fewer matches. Better matches."
+```mermaid
+graph TD
+    subgraph Clients
+        WebClients[Web Clients]
+    end
 
-## 🎯 Product Vision
+    subgraph Backend
+        SpringBoot[Spring Boot API]
+        WebSocket[WebSocket Server]
+    end
 
-Chattr is built on these principles:
+    subgraph Services
+        AuthService[Auth Service]
+        IntroductionsService[Introductions Service]
+        CompatibilityService[Compatibility Scoring]
+        ChatService[Chat Service]
+        UserService[User Service]
+    end
 
-1. **Anti-swipe**: No infinite browsing, no "hot-or-not", no dopamine UI
-2. **Slower matches**: Limited daily opportunities (1–3 per day), intentional pacing
-3. **Fewer chats**: Cap active conversations to reduce overwhelm
-4. **Deeper compatibility**: Structured signals and explained match reasons
-5. **Trust & safety**: Minimal but real (report, block, basic moderation)
-6. **Premium aesthetic**: Calm typography, whitespace, soft edges
-7. **Clear onboarding**: The user understands the value instantly
+    subgraph Data
+        PostgreSQL[(PostgreSQL)]
+        Redis[(Redis)]
+    end
 
-## 🏗️ Architecture
+    WebClients -->|REST API| SpringBoot
+    WebClients -->|WebSocket| WebSocket
 
-```
-┌─────────────────┐
-│   Frontend      │
-│   (Next.js)     │
-│   Port: 3000    │
-└────────┬────────┘
-         │
-         │ REST API + WebSocket
-         │
-┌────────▼────────┐
-│   Backend       │
-│   (Spring Boot) │
-│   Port: 8080    │
-└────────┬────────┘
-         │
-         ├──► PostgreSQL (Persistent data)
-         └──► Redis (Rate limiting, presence)
-```
+    SpringBoot --> AuthService
+    SpringBoot --> IntroductionsService
+    SpringBoot --> CompatibilityService
+    SpringBoot --> ChatService
+    SpringBoot --> UserService
 
-### Components
+    WebSocket --> ChatService
 
-1. **Frontend (Next.js App Router)**
-   - Landing page: `/` - Anti-swipe messaging
-   - Onboarding: `/onboarding` - Multi-step profile setup
-   - Introductions: `/introductions` - Daily introductions (1–3 per day)
-   - Matches: `/matches` - Active matches and conversations
-   - Chat: `/chat/:roomId` - 1:1 messaging
-   - Settings: `/settings` - Pause matching, delete account
+    AuthService --> PostgreSQL
+    IntroductionsService --> PostgreSQL
+    CompatibilityService --> PostgreSQL
+    ChatService --> PostgreSQL
+    UserService --> PostgreSQL
 
-2. **Backend (Spring Boot Monolith)**
-   - Package domains: `auth`, `user`, `chat`, `introductions`, `questionnaire`, `prompts`, `matches`
-   - REST endpoints under `/api/v1/...`
-   - WebSocket endpoint: `/ws` with STOMP + SockJS
-   - JWT authentication
-
-3. **Infrastructure**
-   - **PostgreSQL**: Persistent data (users, questionnaire, introductions, matches, chat)
-   - **Redis**: Rate limiting, presence tracking (optional)
-
-## 🚀 Tech Stack
-
-### Backend
-- **Framework**: Spring Boot (Java 21)
-- **Database**: PostgreSQL
-- **Cache**: Redis (for rate limiting and presence)
-- **Real-time**: WebSockets (STOMP over SockJS)
-- **Auth**: JWT
-- **Rate Limiting**: Bucket4j + Redis
-
-### Frontend
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Auth**: NextAuth
-- **WebSocket**: SockJS + STOMP.js
-
-## 📊 Data Model
-
-### Core Entities
-- **User**: id, username, email, password, gender, orientation, seeking, age, city, country, bio, matchingPaused
-- **QuestionnaireQuestion**: id, text, type, options, weight, displayOrder
-- **QuestionnaireAnswer**: user_id, question_id, answerValue
-- **Prompt**: user_id, promptKey, text (3 prompts per user)
-- **MatchCandidate**: user_id, candidate_user_id, score, reasonsJson, matchDate, status (PENDING/SHOWN/ACCEPTED/PASSED)
-- **Match**: user_a, user_b, matchedAt, isActive
-- **ChatRoom**: user1, user2, roomId, createdAt, isActive
-- **ChatMessage**: room, sender, receiver, content, timestamp, isRead
-- **Block**: blocker_id, blocked_id
-- **Report**: reporter_id, reported_id, reason
-
-## 🔑 Key Features
-
-### Introductions System
-- **Daily limit**: 1–3 introductions per day
-- **On-demand generation**: Introductions generated when user requests them
-- **Compatibility scoring**: Based on questionnaire answers and shared values
-- **Match reasons**: Each introduction includes explanations of why it's a good match
-- **Accept/Pass**: User can accept or pass on each introduction
-- **Mutual acceptance**: Match created when both users accept
-
-### Compatibility Scoring
-- Deterministic scoring based on questionnaire answer similarity
-- Supports MULTIPLE_CHOICE, SCALE, and TEXT question types
-- Generates match reasons (top 3 signals, human-readable explanations)
-- Can be extended with embeddings later
-
-### Chat
-- 1:1 messaging only
-- Real-time via WebSockets
-- Typing indicators and read receipts
-- Conversation cap (e.g., 3 active conversations)
-
-## 🔐 API Endpoints
-
-### Authentication (`/api/v1/auth`)
-- `POST /register` - Register new user
-- `POST /login` - Login and get JWT token
-- `POST /logout` - Logout
-- `GET /me` - Get current user
-
-### Introductions (`/api/v1/introductions`)
-- `GET /` - Get today's introductions (1–3)
-- `POST /{candidateId}/accept` - Accept introduction
-- `POST /{candidateId}/pass` - Pass introduction
-- `POST /{candidateId}/shown` - Mark as shown
-
-### Questionnaire (`/api/v1/questionnaire`)
-- `GET /` - Get all questions
-- `POST /answers` - Submit answers
-
-### Prompts (`/api/v1/prompts`)
-- `GET /` - Get user's prompts
-- `PUT /` - Update prompts
-
-### Matches (`/api/v1/matches`)
-- `GET /` - Get active matches
-- `GET /{matchId}` - Get specific match
-
-### User (`/api/v1/user`)
-- `GET /me` - Get current user profile
-- `PUT /me` - Update profile
-- `POST /me/pause` - Pause matching
-- `POST /me/resume` - Resume matching
-- `DELETE /me` - Delete account
-- `POST /block` - Block user
-- `POST /report` - Report user
-
-### Chat (`/api/v1/chat`)
-- `GET /rooms` - Get chat rooms
-- `GET /room/{roomId}/messages` - Get messages
-- WebSocket: `/ws` - Real-time messaging
-
-## 🛠️ Getting Started
-
-### Prerequisites
-- Docker and Docker Compose
-- Java 21 (for local backend development)
-- Node.js 18+ (for local frontend development)
-
-### Running with Docker Compose
-
-```bash
-# Start all services
-docker-compose up
-
-# Services will be available at:
-# - Frontend: http://localhost:3000
-# - Backend: http://localhost:8080
-# - PostgreSQL: localhost:5432
-# - Redis: localhost:6379
+    Redis --> AuthService
+    Redis --> ChatService
+    Redis --> IntroductionsService
 ```
 
-### Local Development
+## System Overview
 
-#### Backend
-```bash
-cd backend
-./mvnw spring-boot:run
-```
+- **Backend Service**: Spring Boot monolith handling REST API requests and WebSocket connections for real-time chat.
+- **Auth Service**: Manages user registration, login, JWT authentication, and session management.
+- **Introductions Service**: Generates 1-3 daily introductions per user based on compatibility scoring, handles accept/pass logic, and creates matches when both users accept.
+- **Compatibility Scoring**: Computes compatibility scores from questionnaire answers using weighted similarity matching.
+- **Chat Service**: Handles 1:1 messaging with WebSocket support for real-time delivery, typing indicators, and read receipts.
+- **User Service**: Manages user profiles, preferences, blocking, reporting, and account settings.
+- **Database**: PostgreSQL stores all persistent data including users, questionnaire answers, introductions, matches, and messages.
+- **Cache**: Redis is used for rate limiting, presence tracking, and session management.
 
-#### Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## Features
 
-## 📝 Environment Variables
+- Values-based matching using questionnaire compatibility scoring.
+- Daily introductions limited to 1-3 per user for intentional matching.
+- Real-time messaging with WebSocket support.
+- User authentication with JWT tokens.
+- Block and report functionality for safety.
+- Pause matching and account management.
 
-See `.env.example` for required environment variables.
+## Tech Stack
 
-### Backend
-- `SPRING_DATASOURCE_URL` - PostgreSQL connection string
-- `SPRING_REDIS_HOST` - Redis host
-- `JWT_SECRET` - JWT signing secret
-
-### Frontend
-- `NEXT_PUBLIC_API_URL` - Backend API URL (default: http://localhost:8080)
-
-## 🎨 Design Principles
-
-- **Calm, premium aesthetic**: Big typography, lots of whitespace, soft borders
-- **Neutral palette**: No gradient spam, no "gamer UI"
-- **Intentional copy**: Human, calm, confident tone
-- **Anti-swipe messaging**: "No swiping. No noise. Just a few great introductions."
-
-## 🚧 Future Extensions
-
-When scaling beyond v1:
-- Extract matching logic to separate service
-- Add embeddings for better compatibility scoring
-- Re-introduce Kafka for analytics (separate from real-time)
-- Add media uploads (photos)
-- Add multiple modes back (if needed)
-
-## 📄 License
-
-MIT
-
-## 👤 Author
-
-**Sari Hammad**
-
-This project showcases:
-- Anti-swipe matchmaking design
-- Values-based compatibility scoring
-- Intentional, premium UX
-- Production-ready practices (error handling, rate limiting, DTOs)
-- Modern full-stack development (Spring Boot, Next.js)
+- **Backend:** Java 21, Spring Boot, PostgreSQL, Redis, WebSocket
+- **Frontend:** Next.js 15, TypeScript, Tailwind CSS
+- **Realtime:** WebSockets (STOMP over SockJS)
+- **Auth:** JWT
+- **Infra:** Docker, Docker Compose
+- **Architecture:** Monolith
