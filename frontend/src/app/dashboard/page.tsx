@@ -504,7 +504,7 @@ export default function Dashboard() {
         <div className="p-4 bg-gray-50 flex items-center justify-between border-b">
           <div className="flex items-center">
             <Image
-              src={session?.user?.image || '/default-avatar.png'}
+              src="/default-avatar.png"
               alt="Profile"
               width={40}
               height={40}
