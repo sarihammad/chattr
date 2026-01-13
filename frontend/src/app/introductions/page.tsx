@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Heart, X, CheckCircle2, ArrowRight, Loader2 } from 'lucide-react';
+import Image from 'next/image';
 import { getApiUrl, getAuthHeaders } from '@/lib/api';
 
 interface Introduction {
@@ -23,22 +24,25 @@ interface Introduction {
 }
 
 export default function Introductions() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [introductions, setIntroductions] = useState<Introduction[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    } else if (status === 'authenticated') {
-      fetchIntroductions();
+  const markAsShown = useCallback(async (candidateId: number) => {
+    try {
+      await fetch(`${getApiUrl()}/api/v1/introductions/${candidateId}/shown`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+    } catch (error) {
+      console.error('Error marking as shown:', error);
     }
-  }, [status, router]);
+  }, []);
 
-  const fetchIntroductions = async () => {
+  const fetchIntroductions = useCallback(async () => {
     try {
       const response = await fetch(`${getApiUrl()}/api/v1/introductions`, {
         headers: getAuthHeaders(),
@@ -56,18 +60,15 @@ export default function Introductions() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [markAsShown]);
 
-  const markAsShown = async (candidateId: number) => {
-    try {
-      await fetch(`${getApiUrl()}/api/v1/introductions/${candidateId}/shown`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-    } catch (error) {
-      console.error('Error marking as shown:', error);
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    } else if (status === 'authenticated') {
+      fetchIntroductions();
     }
-  };
+  }, [status, router, fetchIntroductions]);
 
   const handleAccept = async () => {
     if (processing || currentIndex >= introductions.length) return;
@@ -193,12 +194,13 @@ export default function Introductions() {
       <div className="container mx-auto px-6 py-8 max-w-2xl">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           {/* Photo placeholder */}
-          <div className="aspect-[4/5] bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+          <div className="aspect-[4/5] bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center relative">
             {currentIntro.candidate.avatarUrl ? (
-              <img
+              <Image
                 src={currentIntro.candidate.avatarUrl}
                 alt={currentIntro.candidate.username}
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
               />
             ) : (
               <div className="text-center">
@@ -310,4 +312,3 @@ export default function Introductions() {
     </div>
   );
 }
-

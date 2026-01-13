@@ -16,11 +16,6 @@ interface ProfileData {
   country: string;
 }
 
-interface QuestionnaireAnswer {
-  questionId: number;
-  answerValue: string;
-}
-
 export default function Onboarding() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -44,7 +39,16 @@ export default function Onboarding() {
     prompt3: '',
   });
 
-  const [questions, setQuestions] = useState<any[]>([]);
+  interface Question {
+    id: number;
+    text: string;
+    type: string;
+    options: string[];
+    weight: number;
+    displayOrder: number;
+  }
+
+  const [questions, setQuestions] = useState<Question[]>([]);
 
   // Fetch questions on step 3
   useEffect(() => {
@@ -56,7 +60,7 @@ export default function Onboarding() {
         .then(data => setQuestions(data))
         .catch(console.error);
     }
-  }, [step]);
+  }, [step, questions.length]);
 
   const handleNext = async () => {
     if (step === 1) {

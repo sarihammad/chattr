@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { MessageCircle, Heart, Loader2 } from 'lucide-react';
+import Image from 'next/image';
 import { getApiUrl, getAuthHeaders } from '@/lib/api';
 import Link from 'next/link';
 
@@ -22,7 +23,7 @@ interface Match {
 }
 
 export default function Matches() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,9 +109,11 @@ export default function Matches() {
                 <div className="flex items-start space-x-4">
                   <div className="flex-shrink-0">
                     {match.otherUser.avatarUrl ? (
-                      <img
+                      <Image
                         src={match.otherUser.avatarUrl}
                         alt={match.otherUser.username}
+                        width={64}
+                        height={64}
                         className="w-16 h-16 rounded-full object-cover"
                       />
                     ) : (

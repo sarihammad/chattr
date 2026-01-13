@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class IntroductionsService {
 
     private static final int MAX_DAILY_INTRODUCTIONS = 3;
-    private static final int MIN_SCORE_THRESHOLD = 0.5; // Minimum compatibility score
+    private static final double MIN_SCORE_THRESHOLD = 0.5; // Minimum compatibility score
     
     @Autowired
     private UserRepository userRepository;

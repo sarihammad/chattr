@@ -43,14 +43,6 @@ jobs:
       #     push: true
       #     tags: ${{ secrets.REGISTRY_URL }}/chattr-frontend:latest
 
-      # - name: Build and push AI service
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     context: ./ai-service
-      #     file: ./ai-service/Dockerfile
-      #     push: true
-      #     tags: ${{ secrets.REGISTRY_URL }}/chattr-ai-service:latest
-
       # Deploy steps would go here based on your infrastructure:
       # - AWS ECS deployment
       # - Google Cloud Run deployment
