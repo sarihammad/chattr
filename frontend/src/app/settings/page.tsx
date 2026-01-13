@@ -1,8 +1,10 @@
 'use client';
 
+import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { getApiUrl, getAuthHeaders } from '@/lib/api';
 
 interface Subscription {
   isSubscribed: boolean;
@@ -177,10 +179,12 @@ export default function SettingsPage() {
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Profile</h2>
           <div className="flex items-center gap-4">
             {session.user.image && (
-              <img
+              <Image
                 src={session.user.image}
                 alt="User avatar"
-                className="h-16 w-16 rounded-full object-cover"
+                width={64}
+                height={64}
+                className="rounded-full object-cover"
               />
             )}
             <div>
@@ -188,6 +192,18 @@ export default function SettingsPage() {
               <p className="text-gray-500 text-sm">{session.user.email}</p>
             </div>
           </div>
+        </div>
+
+        {/* Matching Settings */}
+        <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl mb-8">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Matching</h2>
+          <MatchingSettings />
+        </div>
+
+        {/* Account Settings */}
+        <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl mb-8">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Account</h2>
+          <AccountSettings />
         </div>
 
         <SubscriptionSection
@@ -200,6 +216,137 @@ export default function SettingsPage() {
           handleCancelDowngrade={handleCancelDowngrade}
         />
       </div>
+    </div>
+  );
+}
+
+function MatchingSettings() {
+  const [matchingPaused, setMatchingPaused] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Fetch current matching status
+    fetch(`${getApiUrl()}/api/v1/user/me`, {
+      headers: getAuthHeaders(),
+    })
+      .then(res => res.json())
+      .then(data => {
+        // Note: matchingPaused might not be in the response yet, default to false
+        setMatchingPaused(data.matchingPaused || false);
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleTogglePause = async () => {
+    setLoading(true);
+    try {
+      const endpoint = matchingPaused ? '/api/v1/user/me/resume' : '/api/v1/user/me/pause';
+      const response = await fetch(`${getApiUrl()}${endpoint}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) {
+        setMatchingPaused(!matchingPaused);
+      }
+    } catch (error) {
+      console.error('Error toggling pause:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-gray-800 font-medium">Pause matching</p>
+          <p className="text-sm text-gray-500">
+            Temporarily stop receiving new introductions
+          </p>
+        </div>
+        <button
+          onClick={handleTogglePause}
+          disabled={loading}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+            matchingPaused ? 'bg-rose-500' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              matchingPaused ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AccountSettings() {
+  const router = useRouter();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const response = await fetch(`${getApiUrl()}/api/v1/user/me`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) {
+        router.push('/login');
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-gray-800 font-medium">Delete account</p>
+          <p className="text-sm text-gray-500">
+            Permanently delete your account and all data
+          </p>
+        </div>
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50 transition"
+        >
+          Delete
+        </button>
+      </div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-lg border border-gray-200">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Delete account</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              This action cannot be undone. All your data will be permanently deleted.
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Delete account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
